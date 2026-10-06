@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    container_name: lucky-hub-2026
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: "7860"
+    ports:
+      - "7860:7860"

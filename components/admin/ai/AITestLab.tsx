@@ -1,6 +1,6 @@
 import React, { useState, memo } from 'react';
 import { Message, AIKnowledge, AIRule, HealthGoal, MessageType, MessageStatus } from '../../../types.ts';
-import { getAICoachResponse } from '../../../services/gemini.ts';
+import { getAICoachResponse } from '../../../services/aiCoachService.ts';
 
 interface AITestLabProps {
   knowledge: AIKnowledge[];

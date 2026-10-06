@@ -34,10 +34,10 @@ lucky-hub-2026/
 │   ├── newsfeed/          (NewsFeed, PostCreator, PostItem)
 │   ├── profile/           (Profile, AvatarEditor)
 │   └── system/            (Layout, BadgeDisplay, SystemLog)
-├── services/              (database.ts, gemini.ts)
+├── services/              (database.ts, emailService.ts, ...)
 ├── utils/                 (formatters.ts, helpers)
 ├── types.ts               (Enums, Interfaces)
-└── server.ts              (Express backend)
+└── server/                (Express backend: index.ts, routes/, models/, services/)
 ```
 
 ### 📌 Quy tắc tổ chức file mới
@@ -296,7 +296,8 @@ npm run lint         # TypeScript check
 - [README.md](./README.md) - Getting started
 - [types.ts](./types.ts) - Type definitions & enums
 - [services/database.ts](./services/database.ts) - Database methods
-- [services/gemini.ts](./services/gemini.ts) - AI integration
+- [server/services/ai/](./server/services/ai/) - AI integration (multi-provider gateway)
+- [system-detail.md](./system-detail.md) - Phân tích chi tiết hệ thống
 
 ---
 

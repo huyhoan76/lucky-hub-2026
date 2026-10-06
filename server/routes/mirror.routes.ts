@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { User } from '../models/User.ts';
 import { Metric } from '../models/Metric.ts';
+import { callAIWithRetry } from '../services/ai/index.ts';
 
 const router = Router();
 
@@ -71,7 +72,6 @@ router.get('/tts/greeting/:name', async (req: Request, res: Response) => {
   const customPrompt = req.query.prompt as string;
   try {
     const { ttsService } = await import('../../src/services/ttsService.ts');
-    const { callAIWithRetry } = await import('../services/aiService.ts');
     const audioBuffer = await ttsService.generateGreeting(name, customPrompt, callAIWithRetry);
 
     if (audioBuffer) {

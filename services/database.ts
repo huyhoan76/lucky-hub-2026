@@ -1,4 +1,4 @@
-import { User, HealthMetric, AIKnowledge, AccountStatus, HealthGoal, ChatSession, AIRule, Post, Badge, AuditLog, GeminiKey } from '../types.ts';
+import { User, HealthMetric, AIKnowledge, AccountStatus, HealthGoal, ChatSession, AIRule, Post, Badge, AuditLog } from '../types.ts';
 
 const API_BASE = '/api';
 let isOfflineMode = false;
@@ -136,13 +136,8 @@ export const Database = {
   // Audit Logs
   getAuditLogs: async () => (await request<AuditLog[]>(`${API_BASE}/audit-logs`)) ?? [],
   
-  // Gemini Keys Management
-  getGeminiKeys: async () => (await request<GeminiKey[]>(`${API_BASE}/admin/gemini-keys`)) ?? [],
-  getEnvKeys: async () => (await request<{ label: string, key: string, display: string }[]>(`${API_BASE}/admin/env-keys`)) ?? [],
-  addGeminiKey: (data: { key: string, label: string, keyType?: 'gemini' | 'cline' }) => request<GeminiKey>(`${API_BASE}/admin/gemini-keys`, 'POST', data),
-  deleteGeminiKey: (id: string) => request(`${API_BASE}/admin/gemini-keys/${id}`, 'DELETE'),
-  toggleGeminiKey: (id: string, isActive: boolean) => request(`${API_BASE}/admin/gemini-keys/${id}/toggle`, 'PUT', { isActive }),
-  checkKeyHealth: (key: string, keyType?: 'gemini' | 'cline') => request<{ status: string }>(`${API_BASE}/admin/gemini-keys/check`, 'POST', { key, keyType }),
+  // NOTE: legacy Gemini/Cline key management methods were removed together with
+  // their endpoints (/admin/gemini-keys*, /admin/env-keys) in the AI system rewrite.
 
   // Nutrition Groups (NDD)
   getNutritionGroups: async () => (await request<any[]>(`${API_BASE}/nutrition-groups`)) ?? [],
@@ -206,9 +201,38 @@ export const Database = {
   getNutritionBranchMembersMetrics: async (branchId: string) =>
     (await request<any[]>(`${API_BASE}/nutrition-branches/${branchId}/members-metrics`)) ?? [],
 
-  // AI Config
-  getAIConfig: async () => (await request<{ activeProvider: string; clineKeys: any[]; visionModels: any[] }>(`${API_BASE}/admin/ai-config`)) ?? { activeProvider: 'gemini', clineKeys: [], visionModels: [] },
-  setAIConfig: (activeProvider: string) => request<{ success: boolean }>(`${API_BASE}/admin/ai-config`, 'PUT', { activeProvider }),
-  testClineVision: (data: { apiKey: string; model: string; imageBase64: string; prompt: string }) =>
-    request<{ success: boolean; text?: string; error?: string; cost?: string; resolvedModel?: string }>(`${API_BASE}/admin/ai/test-vision`, 'POST', data, 120000),
+  // NOTE: legacy AI config methods (getAIConfig/setAIConfig/testClineVision) were removed
+  // together with their endpoints (/admin/ai-config, /admin/ai/test-vision).
+
+  // AI Providers (New System)
+  getAIProviders: async () => {
+    const result = await request<{ providers: any[] }>(`${API_BASE}/admin/ai/providers`);
+    return result?.providers ?? [];
+  },
+  getProviderDefinitions: async () => {
+    const result = await request<{ definitions: any[] }>(`${API_BASE}/admin/ai/definitions`);
+    return result?.definitions ?? [];
+  },
+  createAIProvider: (data: any) => request<any>(`${API_BASE}/admin/ai/providers`, 'POST', data),
+  updateAIProvider: (id: string, data: any) => request<any>(`${API_BASE}/admin/ai/providers/${id}`, 'PUT', data),
+  deleteAIProvider: (id: string) => request(`${API_BASE}/admin/ai/providers/${id}`, 'DELETE'),
+  discoverModels: (providerId: string) => request<any>(`${API_BASE}/admin/ai/providers/${providerId}/discover`, 'POST'),
+  discoverModelsInline: (config: { providerId: string; baseUrl: string; apiKey?: string; apiKeys?: any[]; name?: string; customHeaders?: any[] }) => request<any>(`${API_BASE}/admin/ai/providers/discover-inline`, 'POST', config),
+  discoverAllModels: async () => {
+    const result = await request<{ results: any[] }>(`${API_BASE}/admin/ai/providers/discover-all`, 'POST');
+    return result?.results ?? [];
+  },
+  testAIProvider: (providerId: string) => request<any>(`${API_BASE}/admin/ai/providers/${providerId}/test`, 'POST'),
+
+  // AI Task Configs
+  getAITaskConfigs: async () => (await request<{ taskConfigs: any[] }>(`${API_BASE}/admin/ai/task-configs`))?.taskConfigs ?? [],
+  updateAITaskConfig: (taskType: string, data: any) => request<any>(`${API_BASE}/admin/ai/task-configs/${taskType}`, 'PUT', data),
+  getAvailableModelsForTask: async (taskType: string) => (await request<{ availableModels: any[] }>(`${API_BASE}/admin/ai/task-configs/${taskType}`))?.availableModels ?? [],
+
+  // AI Logs
+  getAILogs: async (query: string) => (await request<{ logs: any[], total: number, page: number, limit: number }>(`${API_BASE}/admin/ai/logs?${query}`)) ?? { logs: [], total: 0, page: 1, limit: 50 },
+  getAILogStats: async (hours: number) => (await request<any>(`${API_BASE}/admin/ai/logs/stats?hours=${hours}`)) ?? {},
+  getAIDebugMode: async () => (await request<{ debugMode: boolean }>(`${API_BASE}/admin/ai/logs/debug-mode`)) ?? { debugMode: false },
+  setAIDebugMode: (enabled: boolean) => request<{ success: boolean, debugMode: boolean }>(`${API_BASE}/admin/ai/logs/debug-mode`, 'PUT', { enabled }),
+  cleanAILogs: async (olderThanDays: number) => (await request<{ deletedCount: number }>(`${API_BASE}/admin/ai/logs`, 'DELETE', { olderThanDays })) ?? { deletedCount: 0 },
 };

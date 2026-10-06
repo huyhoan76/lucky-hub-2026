@@ -76,20 +76,6 @@ export enum WsEvent {
   CHAT_GROUP_MESSAGE = 'chatGroup:message',
 }
 
-export interface GeminiKey {
-  id?: string;
-  _id?: string;
-  key: string;
-  label: string;
-  keyType?: 'gemini' | 'cline';
-  isActive: boolean;
-  failCount: number;
-  cooldownUntil: string | null;
-  lastUsed?: string;
-  healthStatus?: string;
-  workingModels?: string[];
-}
-
 export interface AuditLog {
   id?: string;
   _id?: string;

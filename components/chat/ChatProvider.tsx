@@ -6,7 +6,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import { ChatSession, Message, User, MessageType, MessageStatus, WsEvent, AIKnowledge, AIRule, HealthGoal, HealthMetric } from '../../types.ts';
 import wsService from '../../services/wsService.ts';
 import { Database } from '../../services/database.ts';
-import { getAICoachResponse } from '../../services/gemini.ts';
+import { getAICoachResponse } from '../../services/aiCoachService.ts';
 
 // ===== Types =====
 interface ChatContextType {

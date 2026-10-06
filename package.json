@@ -11,7 +11,8 @@
     "start": "node run.js",
     "dev": "tsx watch server/index.ts",
     "build": "echo 'No build step needed'",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "migrate:ai": "tsx scripts/migrate-ai-system.ts"
   },
   "dependencies": {
     "@google/genai": "^1.37.0",

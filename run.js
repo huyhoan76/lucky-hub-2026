@@ -1,7 +1,7 @@
 
 /**
  * File khởi chạy chính cho Render.com
- * Sử dụng tsx để thực thi server.ts trực tiếp
+ * Sử dụng tsx để thực thi server/index.ts trực tiếp
  */
 const { spawn } = require('child_process');
 

@@ -1,255 +1,315 @@
 import { Router, Request, Response } from 'express';
-import { GeminiKey } from '../models/GeminiKey.ts';
 import { AuditLog } from '../models/AuditLog.ts';
+import { SystemSettings } from '../models/SystemSettings.ts';
 import { authMiddleware } from '../middleware/authMiddleware.ts';
 import { requirePermission } from '../middleware/requirePermission.ts';
 import { RESOURCES } from '../config/permissions.ts';
 import { validateBody } from '../../services/validationService.ts';
-import { getConfigValue, setConfigValue, CONFIG_KEYS, AI_PROVIDERS } from '../models/AIConfig.ts';
-import { getActiveProvider } from '../services/aiService.ts';
-import { callClineVision, CLINE_VISION_MODELS } from '../services/clineService.ts';
+import { emailService } from '../../services/emailService.ts';
+import { uploadToImgBB } from '../utils/imageUtils.ts';
+// Using dynamic import for encryption to avoid tsx resolution issues
+const getEncryption = async () => {
+  const { encrypt, decrypt } = await import('../utils/encryption.ts');
+  return { encrypt, decrypt };
+};
 
 const router = Router();
 router.use(authMiddleware);
 router.use(requirePermission(RESOURCES.ADMIN.PANEL));
 
-// GET /api/admin/audit-logs
-router.get('/audit-logs', async (req: Request, res: Response) => {
-  const logs = await AuditLog.find().sort({ createdAt: -1 }).limit(500);
-  res.json(logs);
-});
+// ============================================================================
+// SYSTEM SETTINGS CRUD
+// ============================================================================
 
-// GET /api/admin/env-keys
-router.get('/env-keys', requirePermission(RESOURCES.AI.MANAGE), async (req: Request, res: Response) => {
-  const keys = [
-    { label: 'API_KEY (Primary)', key: process.env.API_KEY },
-    { label: 'API_KEY_2 (Backup)', key: process.env.API_KEY_2 },
-    { label: 'API_KEY_3 (Backup)', key: process.env.API_KEY_3 }
-  ].filter(k => !!k.key).map(k => ({
-    label: k.label,
-    key: k.key,
-    display: `${k.key!.substring(0, 6)}••••${k.key!.substring(k.key!.length - 4)}`
-  }));
-  res.json(keys);
-});
-
-// GET /api/admin/gemini-keys
-router.get('/gemini-keys', requirePermission(RESOURCES.AI.MANAGE), async (req: Request, res: Response) => {
-  const keys = await GeminiKey.find().sort({ createdAt: -1 });
-  res.json(keys.map(k => ({ ...k.toObject(), id: k._id })));
-});
-
-// POST /api/admin/gemini-keys
-router.post('/gemini-keys', requirePermission(RESOURCES.AI.MANAGE), validateBody(
-  { field: 'key', type: 'string', required: true },
-  { field: 'label', type: 'string', required: false, max: 100 },
-  { field: 'keyType', type: 'string', required: false, max: 10 }
-), async (req: Request, res: Response) => {
-    try {
-      const { key, label, keyType } = req.body;
-      const finalKeyType = (keyType === 'cline') ? 'cline' : 'gemini';
-
-      // Check trùng lặp với ENV keys
-      const ENV_API_KEYS = [
-        process.env.API_KEY,
-        process.env.API_KEY_2,
-        process.env.API_KEY_3,
-        process.env.GEMINI_API_KEY
-      ].filter(k => !!k);
-      
-      if (ENV_API_KEYS.includes(key)) {
-        return res.status(400).json({ message: 'KEY ĐÃ TỒN TẠI TRONG DANH SÁCH ENV' });
-      }
-
-      const newKey = new GeminiKey({ key, label, keyType: finalKeyType });
-      await newKey.save();
-      console.log(`[Admin] Added ${finalKeyType.toUpperCase()} key: ${label} (${key.substring(0, 6)}••••${key.substring(key.length - 4)})`);
-      res.json({ ...newKey.toObject(), id: newKey._id });
-    } catch (err: any) {
-      res.status(400).json({ message: 'KEY ĐÃ TỒN TẠI HOẶC KHÔNG HỢP LỆ' });
-    }
-});
-
-// DELETE /api/admin/gemini-keys/:id
-router.delete('/gemini-keys/:id', requirePermission(RESOURCES.AI.MANAGE), async (req: Request, res: Response) => {
+// GET /api/admin/system-settings - Get all settings
+router.get('/system-settings', async (req: Request, res: Response) => {
   try {
-    await GeminiKey.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
+    let settings = await SystemSettings.findOne({}).lean();
+
+    if (!settings) {
+      return res.json({
+        email: { providers: [], senderEmail: '', senderName: '', appBaseUrl: '' },
+        storage: { providers: [] },
+        ai: { encryptionKey: '', geminiProxyUrl: '' },
+      });
+    }
+
+    const maskedSettings = {
+      email: {
+        ...settings.email,
+        providers: settings.email.providers.map((p: any) => ({
+          ...p,
+          apiKey: p.apiKey ? `${p.apiKey.substring(0, 6)}••••${p.apiKey.substring(p.apiKey.length - 4)}` : '',
+        })),
+      },
+      storage: {
+        ...settings.storage,
+        providers: settings.storage.providers.map((p: any) => {
+          const masked = { ...p };
+          if (p.config?.apiKey) {
+            masked.config = { ...p.config, apiKey: `${p.config.apiKey.substring(0, 6)}••••${p.config.apiKey.substring(p.config.apiKey.length - 4)}` };
+          }
+          return masked;
+        }),
+      },
+      ai: {
+        ...settings.ai,
+        encryptionKey: settings.ai.encryptionKey ? '••••••••••••••••••••••••••••••••••••' : '',
+      },
+    };
+
+    res.json(maskedSettings);
   } catch (err: any) {
-    res.status(500).json({ message: err.message });
+    console.error('[Admin] Get system settings failed:', err);
+    res.status(500).json({ message: err.message || 'Lấy cài đặt thất bại' });
   }
 });
 
-// PUT /api/admin/gemini-keys/:id/toggle
-router.put('/gemini-keys/:id/toggle', requirePermission(RESOURCES.AI.MANAGE), async (req: Request, res: Response) => {
+// POST /api/admin/system-settings - Create or update settings
+router.post('/system-settings', async (req: Request, res: Response) => {
   try {
-    const { isActive } = req.body;
-    await GeminiKey.findByIdAndUpdate(req.params.id, { isActive });
-    res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ message: err.message });
-  }
-});
+    const { email, storage, ai } = req.body;
+    const user = (req as any).user?.fullName || 'admin';
 
-/**
- * Kiểm tra key Gemini bằng ListModels API - KHÔNG tốn quota generateContent
- * Trả về model tốt nhất tìm được nếu key hợp lệ, hoặc throw error nếu key lỗi
- */
-async function verifyGeminiKey(apiKey: string): Promise<{ valid: boolean; bestModel?: string; error?: string }> {
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
-    );
-    const data = await response.json();
+    let settings: any = await SystemSettings.findOne({});
 
-    if (!response.ok || data.error) {
-      return { valid: false, error: data.error?.message || `HTTP ${response.status}` };
+    const updateData: any = { updatedBy: user, updatedAt: new Date() };
+
+    if (email) {
+      const { encrypt } = await getEncryption();
+      const providers = (email.providers || []).map((p: any) => ({
+        ...p,
+        apiKey: p.apiKey && !p.apiKey.includes('••••') ? encrypt(p.apiKey) : p.apiKey,
+      }));
+      updateData.email = { ...email, providers };
     }
 
-    if (data.models && data.models.length > 0) {
-      // Lọc model Gemini hỗ trợ generateContent
-      const availableModels = data.models
-        .filter((m: any) =>
-          m.name?.startsWith('models/gemini-') &&
-          m.supportedMethods?.includes('generateContent')
-        )
-        .map((m: any) => m.name.replace('models/', ''));
+    if (storage) {
+      const { encrypt } = await getEncryption();
+      const providers = (storage.providers || []).map((p: any) => {
+        const config = { ...p.config };
+        if (config?.apiKey && !config.apiKey.includes('••••')) {
+          config.apiKey = encrypt(config.apiKey);
+        }
+        return { ...p, config };
+      });
+      updateData.storage = { ...storage, providers };
+    }
 
-      if (availableModels.length > 0) {
-        // Sắp xếp ưu tiên: flash > pro, version mới > cũ
-        availableModels.sort((a: string, b: string) => {
-          const getPriority = (name: string) => {
-            if (name.includes('flash')) return 2;
-            if (name.includes('pro') || name.includes('exp')) return 1;
-            return 0;
-          };
-          const pA = getPriority(a), pB = getPriority(b);
-          if (pA !== pB) return pB - pA;
-          return b.localeCompare(a);
-        });
-
-        console.log(`[GeminiCheck] Key valid, best model: ${availableModels[0]}`);
-        return { valid: true, bestModel: availableModels[0] };
+    if (ai) {
+      const { encrypt } = await getEncryption();
+      updateData.ai = { ...ai };
+      if (ai.encryptionKey && !ai.encryptionKey.includes('••••')) {
+        updateData.ai.encryptionKey = encrypt(ai.encryptionKey);
       }
     }
 
-    return { valid: true, bestModel: 'gemini-2.0-flash' };
-  } catch (err: any) {
-    console.warn('[GeminiCheck] ListModels request failed:', err.message);
-    return { valid: false, error: err.message };
-  }
-}
-
-// POST /api/admin/gemini-keys/check
-router.post('/gemini-keys/check', requirePermission(RESOURCES.AI.MANAGE), async (req: Request, res: Response) => {
-  try {
-    const { key, keyType } = req.body;
-    
-    // Xác định loại key: nếu keyType được gửi lên là 'cline' hoặc key bắt đầu bằng sk_ thì dùng Cline test
-    const isClineKey = keyType === 'cline' || key?.startsWith('sk_');
-    
-    if (isClineKey) {
-      console.log(`[ClineCheck] Testing Cline key...`);
-      const { testClineKey } = await import('../services/clineService.ts');
-      const result = await testClineKey(key);
-      
-      if (result.valid) {
-        console.log(`[ClineCheck] Key is valid (models: ${result.models.join(', ')})`);
-        res.json({ status: 'ok', modelUsed: result.models[0] || 'deepseek/deepseek-chat' });
-      } else {
-        throw new Error(result.error || 'Key không hoạt động');
-      }
+    if (settings) {
+      settings = await SystemSettings.findOneAndUpdate({}, updateData, { new: true }).lean();
     } else {
-      console.log(`[GeminiCheck] Testing Gemini key...`);
-      
-      // Kiểm tra key bằng ListModels API - giống curl test, KHÔNG tốn quota
-      const result = await verifyGeminiKey(key);
-      
-      if (result.valid) {
-        console.log(`[GeminiCheck] Key is valid (model: ${result.bestModel})`);
-        res.json({ status: 'ok', modelUsed: result.bestModel });
+      settings = await SystemSettings.create({ ...updateData, createdBy: user });
+    }
+
+    const masked = {
+      email: {
+        ...settings.email,
+        providers: settings.email.providers.map((p: any) => ({
+          ...p,
+          apiKey: p.apiKey ? `${p.apiKey.substring(0, 6)}••••${p.apiKey.substring(p.apiKey.length - 4)}` : '',
+        })),
+      },
+      storage: {
+        ...settings.storage,
+        providers: settings.storage.providers.map((p: any) => {
+          const masked = { ...p };
+          if (p.config?.apiKey) {
+            masked.config = { ...p.config, apiKey: `${p.config.apiKey.substring(0, 6)}••••${p.config.apiKey.substring(p.config.apiKey.length - 4)}` };
+          }
+          return masked;
+        }),
+      },
+      ai: {
+        ...settings.ai,
+        encryptionKey: settings.ai.encryptionKey ? '••••••••••••••••••••••••••••••••••••' : '',
+      },
+    };
+
+    res.json({ success: true, settings: masked, message: 'Đã lưu cài đặt!' });
+  } catch (err: any) {
+    console.error('[Admin] Save system settings failed:', err);
+    res.status(500).json({ message: err.message || 'Lưu cài đặt thất bại' });
+  }
+});
+
+// DELETE /api/admin/system-settings/:section/:providerId - Delete provider
+router.delete('/system-settings/:section/:providerId', async (req: Request, res: Response) => {
+  try {
+    const { section, providerId } = req.params;
+    const user = (req as any).user?.fullName || 'admin';
+
+    if (!['email', 'storage'].includes(section)) {
+      return res.status(400).json({ message: 'Section không hợp lệ' });
+    }
+
+    const settings = await SystemSettings.findOne({});
+    if (!settings) {
+      return res.status(404).json({ message: 'Chưa có cài đặt' });
+    }
+
+    settings[section].providers = settings[section].providers.filter((p: any) => p._id.toString() !== providerId);
+    settings.updatedBy = user;
+    settings.updatedAt = new Date();
+    await settings.save();
+
+    res.json({ success: true, message: 'Đã xóa provider!' });
+  } catch (err: any) {
+    console.error('[Admin] Delete provider failed:', err);
+    res.status(500).json({ message: err.message || 'Xóa thất bại' });
+  }
+});
+
+// ============================================================================
+// TEST ENDPOINTS
+// ============================================================================
+
+// POST /api/admin/test-email - Send test email with custom content
+router.post('/test-email', requirePermission(RESOURCES.AI.MANAGE), async (req: Request, res: Response) => {
+  try {
+    const { to, subject, html, providerId } = req.body;
+
+    if (!to) {
+      return res.status(400).json({ message: 'Email người nhận là bắt buộc' });
+    }
+
+    const settings = await SystemSettings.findOne({});
+    let provider;
+
+    if (providerId && settings?.email?.providers) {
+      provider = settings.email.providers.find((p: any) => p._id.toString() === providerId);
+    }
+
+    if (!provider && settings?.email?.providers?.length > 0) {
+      provider = settings.email.providers.find((p: any) => p.isActive);
+    }
+
+    if (!provider) {
+      return res.status(400).json({ message: 'Không có provider email nào active' });
+    }
+
+    const { decrypt } = await getEncryption();
+    const apiKey = decrypt(provider.apiKey);
+
+    const emailData = {
+      to,
+      subject: subject || 'Test Email - Lucky Hub',
+      html: html || '<p>Đây là email test từ Lucky Hub Admin Panel</p>',
+      provider: provider.provider,
+      apiKey,
+    };
+
+    await emailService.sendEmail(emailData);
+
+    res.json({ success: true, message: `Đã gửi email test qua ${provider.provider}!` });
+  } catch (err: any) {
+    console.error('[Admin] Test email failed:', err);
+    res.status(500).json({ success: false, message: err.message || 'Gửi email thất bại' });
+  }
+});
+
+// POST /api/admin/test-email/custom - Send custom test email
+router.post('/test-email/custom', requirePermission(RESOURCES.AI.MANAGE), async (req: Request, res: Response) => {
+  try {
+    const { to, subject, html, providerId } = req.body;
+
+    if (!to) {
+      return res.status(400).json({ message: 'Email người nhận là bắt buộc' });
+    }
+
+    const settings = await SystemSettings.findOne({});
+    let provider;
+
+    if (providerId && settings?.email?.providers) {
+      provider = settings.email.providers.find((p: any) => p._id.toString() === providerId);
+    }
+
+    if (!provider && settings?.email?.providers?.length > 0) {
+      provider = settings.email.providers.find((p: any) => p.isActive);
+    }
+
+    if (!provider) {
+      return res.status(400).json({ message: 'Không có provider email nào active' });
+    }
+
+    const { decrypt } = await getEncryption();
+    const apiKey = decrypt(provider.apiKey);
+
+    const emailData = {
+      to,
+      subject: subject || 'Test Email Tùy Chỉnh - Lucky Hub',
+      html: html || '<p>Đây là email test tùy chỉnh từ Lucky Hub Admin Panel</p>',
+      provider: provider.provider,
+      apiKey,
+    };
+
+    await emailService.sendEmail(emailData);
+
+    res.json({ success: true, message: `Đã gửi email tùy chỉnh qua ${provider.provider}!` });
+  } catch (err: any) {
+    console.error('[Admin] Custom test email failed:', err);
+    res.status(500).json({ success: false, message: err.message || 'Gửi email thất bại' });
+  }
+});
+
+// POST /api/admin/test-storage - Test image storage with specific provider
+router.post('/test-storage', requirePermission(RESOURCES.AI.MANAGE), async (req: Request, res: Response) => {
+  try {
+    const { providerId } = req.body;
+
+    const settings = await SystemSettings.findOne({});
+    if (!settings?.storage?.providers?.length) {
+      return res.status(400).json({ message: 'Chưa cấu hình storage provider' });
+    }
+
+    let provider;
+    if (providerId) {
+      provider = settings.storage.providers.find((p: any) => p._id.toString() === providerId);
+    } else {
+      provider = settings.storage.providers.find((p: any) => p.isActive);
+    }
+
+    if (!provider) {
+      return res.status(400).json({ message: 'Không tìm thấy provider storage' });
+    }
+
+    const { decrypt } = await getEncryption();
+    const apiKey = decrypt(provider.config?.apiKey);
+
+    const testImageBase64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+    const originalKey = process.env.IMGBB_API_KEY;
+    process.env.IMGBB_API_KEY = apiKey;
+
+    try {
+      const result = await uploadToImgBB(testImageBase64);
+      process.env.IMGBB_API_KEY = originalKey;
+
+      if (result?.url) {
+        res.json({ success: true, message: `Test upload thành công qua ${provider.provider}`, url: result.url });
       } else {
-        throw new Error(result.error || 'Key không hoạt động');
+        res.status(500).json({ success: false, message: 'Upload thất bại' });
       }
+    } catch (err) {
+      process.env.IMGBB_API_KEY = originalKey;
+      throw err;
     }
   } catch (err: any) {
-    console.error(`[KeyCheck] Key test failed:`, err.message);
-    res.status(400).json({ message: "Key không hoạt động: " + err.message });
+    console.error('[Admin] Test storage failed:', err);
+    res.status(500).json({ success: false, message: err.message || 'Test storage thất bại' });
   }
 });
 
-// =============================================================================
-// AI CONFIG ENDPOINTS
-// =============================================================================
-
-// GET /api/admin/ai-config - Lấy cấu hình AI chính
-router.get('/ai-config', async (req: Request, res: Response) => {
-  try {
-    const activeProvider = await getActiveProvider();
-    
-    // Lấy danh sách Cline keys có sẵn cho test vision
-    const clineKeys = await GeminiKey.find({ isActive: true, keyType: 'cline' }).select('key label _id');
-    
-    res.json({
-      activeProvider,
-      clineKeys: clineKeys.map(k => ({
-        id: k._id,
-        key: k.key,
-        label: k.label,
-        display: `${k.key.substring(0, 6)}••••${k.key.substring(k.key.length - 4)}`
-      })),
-      visionModels: CLINE_VISION_MODELS
-    });
-  } catch (err: any) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// PUT /api/admin/ai-config - Cập nhật cấu hình AI chính
-router.put('/ai-config', requirePermission(RESOURCES.AI.MANAGE), async (req: Request, res: Response) => {
-  try {
-    const { activeProvider } = req.body;
-    
-    if (activeProvider !== AI_PROVIDERS.GEMINI && activeProvider !== AI_PROVIDERS.CLINE) {
-      return res.status(400).json({ message: 'Giá trị không hợp lệ. Chỉ chấp nhận "gemini" hoặc "cline".' });
-    }
-
-    await setConfigValue(CONFIG_KEYS.ACTIVE_PROVIDER, activeProvider);
-    
-    // Clear cache để refresh ngay
-    const { getActiveProvider } = await import('../services/aiService.ts');
-    
-    const actorName = (req as any).user?.fullName || 'Unknown';
-    console.log(`[AI Config] ${actorName} đã chuyển AI chính sang: ${activeProvider.toUpperCase()}`);
-    
-    res.json({ success: true, activeProvider });
-  } catch (err: any) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// POST /api/admin/ai/test-vision - Test Cline Vision
-router.post('/ai/test-vision', requirePermission(RESOURCES.AI.MANAGE), async (req: Request, res: Response) => {
-  try {
-    const { apiKey, model, imageBase64, prompt } = req.body;
-    
-    if (!apiKey) return res.status(400).json({ message: 'Thiếu API Key' });
-    if (!imageBase64) return res.status(400).json({ message: 'Thiếu dữ liệu ảnh' });
-    if (!model) return res.status(400).json({ message: 'Thiếu model' });
-
-    const finalPrompt = prompt || 'Bức ảnh này có nội dung gì? Hãy phân tích và mô tả chi tiết bằng tiếng Việt.';
-
-    console.log(`[AI Test] Testing Cline Vision with model: ${model}`);
-    
-    const result = await callClineVision(apiKey, model, imageBase64, finalPrompt);
-    
-    const actorName = (req as any).user?.fullName || 'Unknown';
-    console.log(`[AI Test] ${actorName} test Cline Vision ${result.success ? 'thành công' : 'thất bại'}`);
-    
-    res.json(result);
-  } catch (err: any) {
-    res.status(500).json({ message: err.message });
-  }
-});
+// NOTE: the previous "legacy" block duplicated POST /test-email and POST /test-storage
+// on the same paths. Express only ever ran the first handler registered above, so the
+// duplicates were unreachable dead code and have been removed. Both endpoints still exist.
 
 export default router;

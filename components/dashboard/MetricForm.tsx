@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, memo, useMemo, useCallback } from 'react';
 import { HealthMetric } from '../../types.ts';
-import { extractMetricsFromImage } from '../../services/gemini.ts';
+import { extractMetricsFromImage } from '../../services/aiCoachService.ts';
 import { formatDateVN } from '../../utils/formatters.ts';
 import LoadingButton from '../system/LoadingButton.tsx';
 import { useBodyScrollLock, useModalStack } from '../system/ModalManager.tsx';

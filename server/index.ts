@@ -30,13 +30,14 @@ import knowledgeRoutes from './routes/knowledge.routes.ts';
 import ruleRoutes from './routes/rule.routes.ts';
 import groupRoutes from './routes/group.routes.ts';
 import aiRoutes from './routes/ai.routes.ts';
+import aiProviderRoutes from './routes/aiProvider.routes.ts';
 import mirrorRoutes from './routes/mirror.routes.ts';
 import nutritionGroupRoutes from './routes/nutritionGroup.routes.ts';
 import nutritionBranchRoutes from './routes/nutritionBranch.routes.ts';
 import chatGroupRoutes from './routes/chatGroup.routes.ts';
 
 // Services
-import { discoverAvailableModels } from './services/aiService.ts';
+import { discoverModelsForAllProviders } from './services/ai/modelDiscovery.ts';
 import { initChatWebSocket } from './websocket/chatSocket.ts';
 
 // Config
@@ -132,6 +133,7 @@ app.use('/api/knowledge', knowledgeRoutes);
 app.use('/api/rules', ruleRoutes);
 app.use('/api/admin/groups', groupRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/admin/ai', aiProviderRoutes);
 
 // Nutrition Group routes
 app.use('/api/nutrition-groups', nutritionGroupRoutes);
@@ -238,29 +240,17 @@ async function startServer() {
     logger.info('SYSTEM', `Environment: ${process.env.NODE_ENV || 'development'}`);
     logger.info('SYSTEM', `Database: ${mongoose.connection.readyState === 1 ? 'Connected' : 'Connecting...'}`);
 
-    // AI Health Check (Gemini + Cline)
-    console.log('\n\x1b[1;35m══════════ CLINE SERVICE =═════════\x1b[0m');
-    console.log('\x1b[1;35m  🧠 Cline AI Service loaded\x1b[0m');
-    console.log(`\x1b[1;35m  📡 Endpoint: https://api.cline.bot/api/v1/chat/completions\x1b[0m`);
-    console.log(`\x1b[1;35m  🤖 Model: deepseek/deepseek-chat → deepseek/deepseek-v3\x1b[0m`);
-    console.log(`\x1b[1;35m  ⏱️  Timeout: 30s\x1b[0m`);
-    console.log('\x1b[1;35m══════════════════════════════════\x1b[0m\n');
-    
-    discoverAvailableModels().catch((err: any) => {
-      logger.error('SYSTEM', `AI health check failed: ${err?.message || err}`);
-    });
-    
-    // Đếm số lượng key trong DB theo loại (không phụ thuộc vào discoverAvailableModels)
-    import('./models/GeminiKey.ts').then(({ GeminiKey }) => {
-      GeminiKey.find({ isActive: true }).then((keys) => {
-        const geminiCount = keys.filter((k: any) => (k as any).keyType === 'gemini' || !(k as any).keyType).length;
-        const clineCount = keys.filter((k: any) => (k as any).keyType === 'cline').length;
-        console.log(`\n\x1b[1;34m[SYSTEM]\x1b[0m AI Keys Summary: \x1b[32m${geminiCount} Gemini\x1b[0m + \x1b[35m${clineCount} Cline\x1b[0m = \x1b[33m${geminiCount + clineCount} total\x1b[0m\n`);
-      }).catch((err: any) => {
-        logger.error('SYSTEM', `AI key count query failed: ${err?.message || err}`);
-      });
-    }).catch((err: any) => {
-      logger.error('SYSTEM', `AI key module import failed: ${err?.message || err}`);
+    // New AI System Health Check
+    console.log('\n\x1b[1;36m══════════ AI SYSTEM (NEW) ══════════\x1b[0m');
+    console.log('\x1b[1;36m  🤖 Multi-provider AI Router loaded\x1b[0m');
+    console.log('\x1b[1;36m  🔑 API Key based (no OAuth)\x1b[0m');
+    console.log('\x1b[1;36m  🔄 Round-robin / Fallback / Priority strategies\x1b[0m');
+    console.log('\x1b[1;36m  📊 Comprehensive logging with debug mode\x1b[0m');
+    console.log('\x1b[1;36m══════════════════════════════════════\x1b[0m\n');
+
+    // Run initial model discovery
+    discoverModelsForAllProviders().catch((err: any) => {
+      logger.error('SYSTEM', `AI model discovery failed: ${err?.message || err}`);
     });
   });
 }

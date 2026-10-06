@@ -1,4 +1,4 @@
-import { callAI, AITaskType } from './aiService.ts';
+import { callAI, AITaskType } from '../services/ai/index.ts';
 import { Type } from '@google/genai';
 import { getUserNutritionContext, buildUserContextForAI, UserNutritionContext } from './userContextService.ts';
 import { buildMealAnalysisContext } from './knowledgeService.ts';

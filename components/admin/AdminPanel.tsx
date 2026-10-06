@@ -7,11 +7,17 @@ import { Database } from '../../services/database.ts';
 import UserManagement from './UserManagement.tsx';
 import AITraining from './AITraining.tsx';
 import AuditLogs from './AuditLogs.tsx';
-import GeminiKeyManager from './ai/GeminiKeyManager.tsx';
-import AIConfigPanel from './ai/AIConfigPanel.tsx';
 import GroupManager from './groups/GroupManager.tsx';
 import NutritionGroupManager from './nutrition/NutritionGroupManager.tsx';
 import BranchManager from './nutrition/BranchManager.tsx';
+
+// Import new AI admin components
+import AIProviderPanel from './ai/AIProviderPanel.tsx';
+import AITaskMappingPanel from './ai/AITaskMappingPanel.tsx';
+import AILogPanel from './ai/AILogPanel.tsx';
+
+// Import System Settings
+import SystemSettings from './SystemSettings.tsx';
 
 interface AdminPanelProps {
   currentUser: User;
@@ -22,7 +28,7 @@ interface AdminPanelProps {
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, users, knowledge, rules, onRefresh }) => {
-  const [activeTab, setActiveTab] = useState<'users' | 'ai' | 'audit' | 'config' | 'groups' | 'ndd' | 'systemndd'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'ai' | 'audit' | 'groups' | 'ndd' | 'systemndd' | 'ai-providers' | 'ai-tasks' | 'ai-logs' | 'system-settings'>('users');
   const [nutritionGroups, setNutritionGroups] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
@@ -81,26 +87,47 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, users, knowledge, 
             <span className="block md:hidden text-base mb-0.5">🌐</span>
             <span className="hidden md:inline">Nhánh NDD</span>
           </button>
-          <button 
-            onClick={() => setActiveTab('ai')} 
+          <button
+            onClick={() => setActiveTab('ai')}
             className={`flex-1 min-w-0 px-2 md:px-3 py-2 md:py-3 rounded-lg md:rounded-xl font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all text-center ${activeTab === 'ai' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
           >
             <span className="block md:hidden text-base mb-0.5">🤖</span>
             <span className="hidden md:inline">Huấn luyện AI</span>
           </button>
-          <button 
-            onClick={() => setActiveTab('config')} 
-            className={`flex-1 min-w-0 px-2 md:px-3 py-2 md:py-3 rounded-lg md:rounded-xl font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all text-center ${activeTab === 'config' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
+          <button
+            onClick={() => setActiveTab('ai-providers')}
+            className={`flex-1 min-w-0 px-2 md:px-3 py-2 md:py-3 rounded-lg md:rounded-xl font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all text-center ${activeTab === 'ai-providers' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
           >
-            <span className="block md:hidden text-base mb-0.5">⚙️</span>
-            <span className="hidden md:inline">Cấu hình</span>
+            <span className="block md:hidden text-base mb-0.5">🔑</span>
+            <span className="hidden md:inline">AI Providers</span>
           </button>
-          <button 
-            onClick={() => setActiveTab('audit')} 
+          <button
+            onClick={() => setActiveTab('ai-tasks')}
+            className={`flex-1 min-w-0 px-2 md:px-3 py-2 md:py-3 rounded-lg md:rounded-xl font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all text-center ${activeTab === 'ai-tasks' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            <span className="block md:hidden text-base mb-0.5">📋</span>
+            <span className="hidden md:inline">Task Mapping</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('ai-logs')}
+            className={`flex-1 min-w-0 px-2 md:px-3 py-2 md:py-3 rounded-lg md:rounded-xl font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all text-center ${activeTab === 'ai-logs' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            <span className="block md:hidden text-base mb-0.5">📊</span>
+            <span className="hidden md:inline">AI Logs</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('audit')}
             className={`flex-1 min-w-0 px-2 md:px-3 py-2 md:py-3 rounded-lg md:rounded-xl font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all text-center ${activeTab === 'audit' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
           >
             <span className="block md:hidden text-base mb-0.5">📋</span>
             <span className="hidden md:inline">Nhật ký</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('system-settings')}
+            className={`flex-1 min-w-0 px-2 md:px-3 py-2 md:py-3 rounded-lg md:rounded-xl font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all text-center ${activeTab === 'system-settings' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            <span className="block md:hidden text-base mb-0.5">⚙️</span>
+            <span className="hidden md:inline">Cài đặt</span>
           </button>
         </div>
       </div>
@@ -113,15 +140,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, users, knowledge, 
 
         {activeTab === 'ai' && (
           <AITraining knowledge={knowledge} rules={rules} onRefresh={onRefresh} />
-        )}
-
-        {activeTab === 'config' && (
-          <div className="animate-in fade-in space-y-8">
-            <AIConfigPanel />
-            <div className="border-t border-slate-100 pt-8">
-              <GeminiKeyManager />
-            </div>
-          </div>
         )}
 
         {activeTab === 'groups' && (
@@ -138,6 +156,22 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, users, knowledge, 
 
         {activeTab === 'systemndd' && (
           <BranchManager />
+        )}
+
+        {activeTab === 'ai-providers' && (
+          <AIProviderPanel />
+        )}
+
+        {activeTab === 'ai-tasks' && (
+          <AITaskMappingPanel />
+        )}
+
+        {activeTab === 'ai-logs' && (
+          <AILogPanel />
+        )}
+
+        {activeTab === 'system-settings' && (
+          <SystemSettings currentUser={currentUser} onRefresh={onRefresh} />
         )}
       </div>
     </div>
