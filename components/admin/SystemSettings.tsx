@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, memo } from 'react';
 import { Database } from '../../services/database.ts';
+import SystemBrandingSettings from './SystemBrandingSettings.tsx';
 
 interface SystemSettingsProps {
   currentUser: any;
@@ -37,6 +38,15 @@ interface StorageProvider {
   updatedAt: string;
 }
 
+interface MagicMirrorToken {
+  id: string;
+  name: string;
+  tokenPrefix: string;
+  isActive: boolean;
+  createdAt: string;
+  expiresAt: string | null;
+}
+
 interface SystemSettingsData {
   email: {
     providers: EmailProvider[];
@@ -63,11 +73,19 @@ interface SystemSettingsData {
 }
 
 const SystemSettings: React.FC<SystemSettingsProps> = function SystemSettings({ currentUser, onRefresh }: SystemSettingsProps) {
-  const [activeSection, setActiveSection] = useState<'email' | 'storage' | 'ai-keys'>('email');
+  const [activeSection, setActiveSection] = useState<'email' | 'storage' | 'ai-keys' | 'magic-mirror' | 'branding'>('email');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [settings, setSettings] = useState<SystemSettingsData | null>(null);
+  const [magicMirrorTokens, setMagicMirrorTokens] = useState<MagicMirrorToken[]>([]);
+  const [isLoadingMagicMirrorTokens, setIsLoadingMagicMirrorTokens] = useState(false);
+  const [hasLoadedMagicMirrorTokens, setHasLoadedMagicMirrorTokens] = useState(false);
+  const [showMagicMirrorTokenForm, setShowMagicMirrorTokenForm] = useState(false);
+  const [editingMagicMirrorToken, setEditingMagicMirrorToken] = useState<MagicMirrorToken | null>(null);
+  const [magicMirrorTokenName, setMagicMirrorTokenName] = useState('');
+  const [magicMirrorTokenExpiry, setMagicMirrorTokenExpiry] = useState('');
+  const [newMagicMirrorSecret, setNewMagicMirrorSecret] = useState('');
 
   const [showAddEmailProvider, setShowAddEmailProvider] = useState(false);
   const [showAddStorageProvider, setShowAddStorageProvider] = useState(false);
@@ -115,7 +133,147 @@ const SystemSettings: React.FC<SystemSettingsProps> = function SystemSettings({ 
     loadSettings();
   }, [loadSettings]);
 
+  const loadMagicMirrorTokens = useCallback(async () => {
+    setIsLoadingMagicMirrorTokens(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/admin/magic-mirror-tokens', {
+        headers: getAuthHeaders(),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Không thể tải danh sách token.');
+      setMagicMirrorTokens(data);
+      setHasLoadedMagicMirrorTokens(true);
+    } catch (err: any) {
+      setHasLoadedMagicMirrorTokens(false);
+      setError(err.message || 'Không thể tải danh sách token.');
+    } finally {
+      setIsLoadingMagicMirrorTokens(false);
+    }
+  }, [getAuthHeaders]);
+
+  useEffect(() => {
+    if (activeSection === 'magic-mirror') loadMagicMirrorTokens();
+  }, [activeSection, loadMagicMirrorTokens]);
+
   const clearMessages = () => { setError(null); setSuccess(null); };
+
+  const saveMagicMirrorToken = async () => {
+    const name = magicMirrorTokenName.trim();
+    if (!name) {
+      setError('Vui lòng nhập tên token.');
+      return;
+    }
+
+    setIsLoading(true);
+    clearMessages();
+    try {
+      const isEditing = Boolean(editingMagicMirrorToken);
+      const response = await fetch(
+        isEditing
+          ? `/api/admin/magic-mirror-tokens/${editingMagicMirrorToken!.id}`
+          : '/api/admin/magic-mirror-tokens',
+        {
+          method: isEditing ? 'PUT' : 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            name,
+            expiresAt: magicMirrorTokenExpiry || null,
+          }),
+        }
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Không thể lưu token.');
+
+      if (isEditing) {
+        setSuccess('Đã cập nhật token Magic Mirror.');
+      } else {
+        setNewMagicMirrorSecret(data.secret);
+        setSuccess('Đã tạo token. Hãy sao chép và cập nhật cấu hình hai module Magic Mirror.');
+      }
+      setShowMagicMirrorTokenForm(false);
+      setEditingMagicMirrorToken(null);
+      setMagicMirrorTokenName('');
+      setMagicMirrorTokenExpiry('');
+      await loadMagicMirrorTokens();
+    } catch (err: any) {
+      setError(err.message || 'Không thể lưu token.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const copyMagicMirrorToken = async (token: MagicMirrorToken) => {
+    setIsLoading(true);
+    clearMessages();
+    try {
+      const response = await fetch(`/api/admin/magic-mirror-tokens/${token.id}/reveal`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Không thể lấy token.');
+      try {
+        await navigator.clipboard.writeText(data.secret);
+      } catch {
+        setNewMagicMirrorSecret(data.secret);
+        throw new Error('Không thể truy cập clipboard. Token đã được hiển thị để bạn sao chép thủ công.');
+      }
+      setSuccess(`Đã sao chép token "${token.name}".`);
+    } catch (err: any) {
+      setError(err.message || 'Không thể sao chép token.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const toggleMagicMirrorToken = async (token: MagicMirrorToken) => {
+    setIsLoading(true);
+    clearMessages();
+    try {
+      const response = await fetch(`/api/admin/magic-mirror-tokens/${token.id}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ isActive: !token.isActive }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Không thể đổi trạng thái token.');
+      setMagicMirrorTokens(prev => prev.map(item => item.id === token.id ? data.token : item));
+      setSuccess(data.token.isActive ? 'Đã bật token.' : 'Đã chặn token.');
+    } catch (err: any) {
+      setError(err.message || 'Không thể đổi trạng thái token.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteMagicMirrorToken = async (token: MagicMirrorToken) => {
+    if (!confirm(`Xóa token "${token.name}"? Thiết bị đang sử dụng token này sẽ mất quyền truy cập.`)) return;
+    setIsLoading(true);
+    clearMessages();
+    try {
+      const response = await fetch(`/api/admin/magic-mirror-tokens/${token.id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Không thể xóa token.');
+      setMagicMirrorTokens(prev => prev.filter(item => item.id !== token.id));
+      setSuccess('Đã xóa token Magic Mirror.');
+    } catch (err: any) {
+      setError(err.message || 'Không thể xóa token.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const editMagicMirrorToken = (token: MagicMirrorToken) => {
+    setEditingMagicMirrorToken(token);
+    setMagicMirrorTokenName(token.name);
+    setMagicMirrorTokenExpiry(token.expiresAt ? new Date(token.expiresAt).toISOString().slice(0, 10) : '');
+    setShowMagicMirrorTokenForm(true);
+    clearMessages();
+  };
 
   const saveSettings = async (section: 'email' | 'storage' | 'ai') => {
     setIsLoading(true);
@@ -270,8 +428,8 @@ const SystemSettings: React.FC<SystemSettingsProps> = function SystemSettings({ 
   };
 
   const addStorageProvider = async () => {
-    if (!storageForm.apiKey || !storageForm.label) {
-      setError('Vui lòng nhập API Key và Label');
+    if (!storageForm.label || (storageForm.provider !== 's3' && !storageForm.apiKey)) {
+      setError(storageForm.provider === 's3' ? 'Vui lòng nhập Label.' : 'Vui lòng nhập API Key và Label.');
       return;
     }
     setIsLoading(true);
@@ -283,13 +441,19 @@ const SystemSettings: React.FC<SystemSettingsProps> = function SystemSettings({ 
         body: JSON.stringify({
           storage: {
             ...settings?.storage,
-            providers: [...(settings?.storage.providers || []), {
-              provider: storageForm.provider,
-              config: { apiKey: storageForm.apiKey },
-              label: storageForm.label,
-              isActive: storageForm.isActive,
-              priority: storageForm.priority,
-            }]
+            providers: [
+              ...(settings?.storage.providers || []).map(provider => ({
+                ...provider,
+                isActive: storageForm.isActive ? false : provider.isActive,
+              })),
+              {
+                provider: storageForm.provider,
+                config: { apiKey: storageForm.apiKey },
+                label: storageForm.label,
+                isActive: storageForm.isActive,
+                priority: storageForm.priority,
+              },
+            ]
           }
         }),
       });
@@ -436,24 +600,27 @@ const SystemSettings: React.FC<SystemSettingsProps> = function SystemSettings({ 
   return (
     <div className="space-y-6 pb-10">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col items-start gap-4">
         <h3 className="font-black text-slate-800 text-lg uppercase tracking-wider">Cài đặt Hệ thống</h3>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex w-full flex-nowrap gap-1 md:w-auto md:flex-wrap md:gap-2">
           {[
             { id: 'email', label: 'Email', icon: '📧' },
             { id: 'storage', label: 'Lưu trữ ảnh', icon: '🖼️' },
             { id: 'ai-keys', label: 'AI Keys', icon: '🔑' },
+            { id: 'magic-mirror', label: 'CẤU HÌNH MAGIC MIRROR', icon: '🪞' },
+            { id: 'branding', label: 'THÔNG TIN CƠ BẢN', icon: '🎨' },
           ].map(section => (
             <button
               key={section.id}
               onClick={() => { setActiveSection(section.id as any); clearMessages(); }}
-              className={`px-4 py-2 rounded-xl text-sm font-bold uppercase transition-all ${
+              className={`flex min-w-0 items-center justify-center gap-1 rounded-xl px-1 py-2 text-[9px] font-bold uppercase transition-all md:w-auto md:flex-none md:flex-col md:gap-0 md:px-4 md:text-sm ${
                 activeSection === section.id
-                  ? 'bg-emerald-600 text-white shadow'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'flex-[5] bg-emerald-600 text-white shadow md:flex-none'
+                  : 'flex-1 bg-slate-100 text-slate-600 hover:bg-slate-200 md:flex-none'
               }`}
             >
-              {section.icon} {section.label}
+              <span className="block text-base">{section.icon}</span>
+              <span className={activeSection === section.id ? 'inline whitespace-nowrap' : 'hidden md:inline'}>{section.label}</span>
             </button>
           ))}
         </div>
@@ -469,6 +636,8 @@ const SystemSettings: React.FC<SystemSettingsProps> = function SystemSettings({ 
           <p className="text-emerald-700 font-medium">Thành công: {success}</p>
         </div>
       )}
+
+      {activeSection === 'branding' && <SystemBrandingSettings />}
 
       {/* Email Settings */}
       {activeSection === 'email' && (
@@ -735,9 +904,10 @@ const SystemSettings: React.FC<SystemSettingsProps> = function SystemSettings({ 
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
                 <p className="font-black text-amber-700 text-sm mb-2">⚠️ Lưu ý quan trọng</p>
                 <ul className="text-sm text-amber-600 space-y-1 list-disc list-inside">
-                  <li>Chỉ cấu hình <strong>một</strong> provider lưu trữ ảnh</li>
-                  <li>Hệ thống ưu tiên: ImgBB → Cloudinary → S3</li>
+                  <li>Chỉ chọn <strong>một</strong> provider lưu trữ ảnh đang hoạt động</li>
+                  <li>Nếu có nhiều provider hoạt động, provider có Priority nhỏ nhất được chọn</li>
                   <li>Các key được lưu trong database (mã hóa), .env là key dự phòng</li>
+                  <li>Bucket S3 cần cho phép đọc ảnh công khai để hiển thị logo hệ thống</li>
                 </ul>
               </div>
 
@@ -751,9 +921,23 @@ const SystemSettings: React.FC<SystemSettingsProps> = function SystemSettings({ 
                         <div className="flex items-center gap-3">
                           <span className="w-6 text-center text-slate-400 font-bold">{index + 1}</span>
                           <span className="font-bold text-slate-800 capitalize">{provider.provider}</span>
-                          <span className={`px-2 py-1 rounded text-xs font-bold ${provider.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                            {provider.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động'}
-                          </span>
+                          <button
+                            type="button"
+                            disabled={isLoading}
+                            onClick={() => setSettings(prev => prev ? {
+                              ...prev,
+                              storage: {
+                                ...prev.storage,
+                                providers: prev.storage.providers.map(item => ({
+                                  ...item,
+                                  isActive: item._id === provider._id,
+                                })),
+                              },
+                            } : null)}
+                            className={`px-2 py-1 rounded text-xs font-bold ${provider.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700'}`}
+                          >
+                            {provider.isActive ? 'Đang sử dụng' : 'Dùng provider này'}
+                          </button>
                           <span className="px-2 py-1 rounded text-xs font-bold bg-slate-100 text-slate-500">Priority: {provider.priority}</span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -834,8 +1018,9 @@ const SystemSettings: React.FC<SystemSettingsProps> = function SystemSettings({ 
                             <div>
                               <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1">Access Key</label>
                               <input
-                                type="text"
-                                value={provider.config?.accessKey || ''}
+                                type="password"
+                                value={provider.config?.accessKey?.includes('••••') ? '' : provider.config?.accessKey || ''}
+                                placeholder={provider.config?.accessKey ? 'Giữ nguyên key hiện tại' : 'Nhập Access Key'}
                                 onChange={(e) => {
                                   const updatedProviders = settings?.storage.providers.map(p =>
                                     p._id === provider._id ? { ...p, config: { ...p.config, accessKey: e.target.value } } : p
@@ -928,16 +1113,18 @@ const SystemSettings: React.FC<SystemSettingsProps> = function SystemSettings({ 
                         className="w-full px-4 py-3 rounded-xl text-sm bg-white border border-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1">API Key</label>
-                      <input
-                        type="password"
-                        value={storageForm.apiKey}
-                        onChange={(e) => handleStorageProviderChange('apiKey', e.target.value)}
-                        placeholder="Nhập API Key"
-                        className="w-full px-4 py-3 rounded-xl text-sm bg-white border border-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
-                      />
-                    </div>
+                    {storageForm.provider !== 's3' && (
+                      <div>
+                        <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1">API Key</label>
+                        <input
+                          type="password"
+                          value={storageForm.apiKey}
+                          onChange={(e) => handleStorageProviderChange('apiKey', e.target.value)}
+                          placeholder="Nhập API Key"
+                          className="w-full px-4 py-3 rounded-xl text-sm bg-white border border-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
+                        />
+                      </div>
+                    )}
                     <div>
                       <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1">Priority</label>
                       <input
@@ -979,7 +1166,14 @@ const SystemSettings: React.FC<SystemSettingsProps> = function SystemSettings({ 
                 </div>
               )}
 
-              <div className="pt-4 border-t border-slate-100 flex gap-3">
+              <div className="pt-4 border-t border-slate-100 flex flex-wrap gap-3">
+                <button
+                  onClick={() => saveSettings('storage')}
+                  disabled={isLoading}
+                  className="flex-1 min-w-[180px] py-3 bg-slate-900 text-white rounded-xl font-black uppercase text-sm shadow disabled:opacity-50"
+                >
+                  {isLoading ? 'Đang lưu...' : 'Lưu cấu hình lưu trữ'}
+                </button>
                 <button
                   onClick={() => testStorage()}
                   disabled={isLoading}
@@ -1043,6 +1237,151 @@ const SystemSettings: React.FC<SystemSettingsProps> = function SystemSettings({ 
                   Làm mới
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeSection === 'magic-mirror' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="p-5 bg-slate-50/50 border-b border-slate-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h4 className="font-black text-slate-700 uppercase tracking-widest text-sm flex items-center gap-2">
+                  <span className="text-lg">🪞</span> CẤU HÌNH MAGIC MIRROR
+                </h4>
+                <p className="text-xs text-slate-500 mt-2">Mỗi thiết bị có thể dùng token riêng. Token hết hạn hoặc bị tắt sẽ không thể kết nối.</p>
+              </div>
+              <button
+                onClick={() => {
+                  setEditingMagicMirrorToken(null);
+                  setMagicMirrorTokenName('');
+                  setMagicMirrorTokenExpiry('');
+                  setShowMagicMirrorTokenForm(true);
+                  clearMessages();
+                }}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700"
+              >
+                Tạo token mới
+              </button>
+            </div>
+
+            {newMagicMirrorSecret && (
+              <div className="m-5 p-4 rounded-xl border border-amber-300 bg-amber-50 space-y-3">
+                <p className="text-sm font-bold text-amber-900">Token mới — hãy cấu hình vào cả hai module Magic Mirror.</p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    readOnly
+                    value={newMagicMirrorSecret}
+                    className="min-w-0 flex-1 px-3 py-2 rounded-lg border border-amber-200 bg-white font-mono text-xs"
+                    onFocus={event => event.currentTarget.select()}
+                  />
+                  <button
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(newMagicMirrorSecret);
+                        setSuccess('Đã sao chép token mới.');
+                      } catch (err: any) {
+                        setError(err.message || 'Không thể sao chép token.');
+                      }
+                    }}
+                    className="px-4 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold"
+                  >
+                    Sao chép
+                  </button>
+                  <button
+                    onClick={() => setNewMagicMirrorSecret('')}
+                    className="px-4 py-2 rounded-lg bg-white border border-amber-200 text-amber-800 text-xs font-bold"
+                  >
+                    Đóng
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {showMagicMirrorTokenForm && (
+              <div className="m-5 p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-4">
+                <h5 className="font-bold text-slate-800">{editingMagicMirrorToken ? 'Sửa token' : 'Tạo token Magic Mirror'}</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label className="text-xs font-bold text-slate-600">
+                    Tên token
+                    <input
+                      maxLength={80}
+                      value={magicMirrorTokenName}
+                      onChange={event => setMagicMirrorTokenName(event.target.value)}
+                      placeholder="Ví dụ: Magic Mirror phòng khách"
+                      className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm"
+                    />
+                  </label>
+                  <label className="text-xs font-bold text-slate-600">
+                    Ngày hết hạn (để trống nếu không hết hạn)
+                    <input
+                      type="date"
+                      value={magicMirrorTokenExpiry}
+                      onChange={event => setMagicMirrorTokenExpiry(event.target.value)}
+                      className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm"
+                    />
+                  </label>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={saveMagicMirrorToken}
+                    disabled={isLoading}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold disabled:opacity-50"
+                  >
+                    {isLoading ? 'Đang lưu...' : editingMagicMirrorToken ? 'Lưu thay đổi' : 'Tạo token'}
+                  </button>
+                  <button
+                    onClick={() => { setShowMagicMirrorTokenForm(false); setEditingMagicMirrorToken(null); }}
+                    className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-bold"
+                  >
+                    Hủy
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="p-5">
+              {isLoadingMagicMirrorTokens ? (
+                <p className="py-8 text-center text-sm text-slate-400">Đang tải token...</p>
+              ) : !hasLoadedMagicMirrorTokens ? (
+                <p className="py-8 text-center text-sm text-rose-500">Không thể tải danh sách token.</p>
+              ) : magicMirrorTokens.length === 0 ? (
+                <p className="py-8 text-center text-sm text-slate-400">Chưa có token Magic Mirror.</p>
+              ) : (
+                <div className="space-y-3">
+                  {magicMirrorTokens.map(token => {
+                    const expired = token.expiresAt !== null && new Date(token.expiresAt).getTime() <= Date.now();
+                    const active = token.isActive && !expired;
+                    return (
+                      <div key={token.id} className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-bold text-slate-800">{token.name}</span>
+                            <span className={`px-2 py-1 rounded text-xs font-bold ${active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                              {expired ? 'Đã hết hạn' : token.isActive ? 'Đang bật' : 'Đã chặn'}
+                            </span>
+                          </div>
+                          <p className="font-mono text-xs text-slate-500">Token: {token.tokenPrefix}••••••••</p>
+                          <p className="text-xs text-slate-500">
+                            Tạo: {new Date(token.createdAt).toLocaleString('vi-VN')}
+                            {' · '}
+                            Hết hạn: {token.expiresAt ? new Date(token.expiresAt).toLocaleDateString('vi-VN') : 'Không hết hạn'}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button onClick={() => copyMagicMirrorToken(token)} disabled={isLoading} className="px-3 py-2 rounded-lg bg-sky-100 text-sky-700 text-xs font-bold disabled:opacity-50">Copy token</button>
+                          <button onClick={() => toggleMagicMirrorToken(token)} disabled={isLoading} className={`px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-50 ${token.isActive ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            {token.isActive ? 'Chặn' : 'Cho phép'}
+                          </button>
+                          <button onClick={() => editMagicMirrorToken(token)} disabled={isLoading} className="px-3 py-2 rounded-lg bg-slate-200 text-slate-700 text-xs font-bold disabled:opacity-50">Sửa</button>
+                          <button onClick={() => deleteMagicMirrorToken(token)} disabled={isLoading} className="px-3 py-2 rounded-lg bg-rose-100 text-rose-700 text-xs font-bold disabled:opacity-50">Xóa</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>

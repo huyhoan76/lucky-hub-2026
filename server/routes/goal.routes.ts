@@ -7,9 +7,16 @@ import { authMiddleware } from '../middleware/authMiddleware.ts';
 const router = Router();
 router.use(authMiddleware);
 
+function ensureOwnUser(req: Request, res: Response, userId: string): boolean {
+  if (req.user?.userId === userId) return true;
+  res.status(403).json({ message: 'Bạn chỉ có thể truy cập mục tiêu của bản thân.' });
+  return false;
+}
+
 // GET /api/goals/:userId
 router.get('/:userId', async (req: Request, res: Response) => {
   try {
+    if (!ensureOwnUser(req, res, req.params.userId)) return;
     const goals = await Goal.find({ userId: req.params.userId }).sort({ createdAt: -1 });
     res.json(goals.map(g => ({ ...g.toObject(), id: g._id })));
   } catch (err: any) {
@@ -21,6 +28,7 @@ router.get('/:userId', async (req: Request, res: Response) => {
 router.post('/', async (req: Request, res: Response) => {
   try {
     const { userId, type, targetValue, startValue, startDate, targetDate } = req.body;
+    if (typeof userId !== 'string' || !ensureOwnUser(req, res, userId)) return;
     const goal = new Goal({ userId, type, targetValue, startValue: startValue || 0, startDate, targetDate, progress: 0, status: 'active' });
     await goal.save();
     res.json({ ...goal.toObject(), id: goal._id });
@@ -33,6 +41,10 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { targetValue, targetDate, status } = req.body;
+    const existingGoal = await Goal.findById(req.params.id);
+    if (!existingGoal) return res.status(404).json({ message: 'Goal not found' });
+    if (!ensureOwnUser(req, res, existingGoal.userId.toString())) return;
+
     const updateData: any = {};
     if (targetValue !== undefined) updateData.targetValue = targetValue;
     if (targetDate !== undefined) updateData.targetDate = targetDate;
@@ -49,6 +61,9 @@ router.put('/:id', async (req: Request, res: Response) => {
 // DELETE /api/goals/:id
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
+    const goal = await Goal.findById(req.params.id);
+    if (!goal) return res.status(404).json({ message: 'Goal not found' });
+    if (!ensureOwnUser(req, res, goal.userId.toString())) return;
     await Goal.findByIdAndDelete(req.params.id);
     res.json({ success: true });
   } catch (err: any) {
@@ -60,6 +75,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 router.post('/check-reminders/:userId', async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
+    if (!ensureOwnUser(req, res, userId)) return;
     const now = new Date();
     const goals = await Goal.find({ userId, status: 'active' });
     const reminders: any[] = [];
@@ -133,6 +149,7 @@ router.post('/:goalId/notify-completed', async (req: Request, res: Response) => 
     const { goalId } = req.params;
     const goal = await Goal.findById(goalId);
     if (!goal) return res.status(404).json({ message: 'Goal not found' });
+    if (!ensureOwnUser(req, res, goal.userId.toString())) return;
 
     if (goal.status !== 'completed') return res.json({ message: 'Goal chưa hoàn thành' });
 
@@ -153,6 +170,7 @@ router.post('/:goalId/notify-completed', async (req: Request, res: Response) => 
 router.post('/recalculate/:userId', async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
+    if (!ensureOwnUser(req, res, userId)) return;
     const goals = await Goal.find({ userId, status: 'active' });
     const latestMetric = await Metric.findOne({ userId }).sort({ date: -1 });
     if (!latestMetric) return res.json({ goals: goals.map(g => ({ ...g.toObject(), id: g._id })) });

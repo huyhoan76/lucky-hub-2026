@@ -1,12 +1,13 @@
+import { getMongoUri } from '../mongoUri.ts';
 import mongoose from 'mongoose';
-import { AIProvider } from './server/models/AIProvider.ts';
-import { decrypt } from './server/utils/encryption.ts';
+import { AIProvider } from '../../server/models/AIProvider.ts';
+import { decrypt } from '../../server/utils/encryption.ts';
 
 const encKey = process.env.AI_ENCRYPTION_KEY || '';
 
 (async () => {
   mongoose.set('strictQuery', false);
-  await mongoose.connect('mongodb+srv://vnminenetworkgame_db_user:vsKaIcSSJhfiJYLn@luckyhub.myqla9g.mongodb.net/lucky_hub?retryWrites=true&w=majority', { serverSelectionTimeoutMS: 10000 });
+  await mongoose.connect(getMongoUri(), { serverSelectionTimeoutMS: 10000 });
   
   const provider = await AIProvider.findOne({ providerId: 'selfhosted', name: '9router' }).lean();
   if (!provider) {

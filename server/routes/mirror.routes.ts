@@ -5,7 +5,7 @@ import { callAIWithRetry } from '../services/ai/index.ts';
 
 const router = Router();
 
-// Magic Mirror - KHÔNG AUTH (chỉ mirror local gửi request)
+// These device routes are protected by magicMirrorAuth in server/index.ts.
 
 // GET /MM/config
 router.get('/config', async (req: Request, res: Response) => {
@@ -22,11 +22,14 @@ router.get('/config', async (req: Request, res: Response) => {
 router.get('/:username/info', async (req: Request, res: Response) => {
   const username = req.params.username.toLowerCase().trim();
   try {
-    const user = await User.findOne({ username });
+    const user = await User.findOne({ username }).select('username fullName avatar');
     if (!user) return res.status(404).json({ message: 'User not found' });
-    const u = user.toObject();
-    delete u.password;
-    res.json({ ...u, id: user._id });
+    res.json({
+      id: user._id,
+      username: user.username,
+      fullName: user.fullName,
+      avatar: user.avatar,
+    });
   } catch (err: any) {
     res.status(500).json({ message: err.message });
   }
@@ -35,14 +38,20 @@ router.get('/:username/info', async (req: Request, res: Response) => {
 // GET /MM/:username/metrics/:n
 router.get('/:username/metrics/:n', async (req: Request, res: Response) => {
   const username = req.params.username.toLowerCase().trim();
-  const n = parseInt(req.params.n) || 1;
+  const requestedLimit = Number(req.params.n);
+  if (!Number.isSafeInteger(requestedLimit) || requestedLimit < 1) {
+    return res.status(400).json({ message: 'Invalid metrics limit.' });
+  }
+  const limit = Math.min(requestedLimit, 30);
+
   try {
     const user = await User.findOne({ username });
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     const metrics = await Metric.find({ userId: user._id })
+      .select('date weight bodyFat muscleMass waterPercent boneMinerals')
       .sort({ date: -1 })
-      .limit(n);
+      .limit(limit);
 
     res.json(metrics.map(m => ({ ...m.toObject(), id: m._id })));
   } catch (err: any) {

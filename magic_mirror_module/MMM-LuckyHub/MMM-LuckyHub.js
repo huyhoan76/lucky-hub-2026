@@ -8,6 +8,7 @@ Module.register("MMM-LuckyHub", {
     retryDelay: 5000,
     animationSpeed: 1000,
     metricsLimit: 7, // Hiển thị 7 ngày gần nhất
+    apiToken: "",
   },
 
   start: function() {
@@ -268,14 +269,30 @@ Module.register("MMM-LuckyHub", {
 
   getData: function() {
     const self = this;
-    const infoUrl = this.config.baseUrl + "/MM/" + this.config.username + "/info";
-    const metricsUrl = this.config.baseUrl + "/MM/" + this.config.username + "/metrics/" + this.config.metricsLimit;
+    if (!this.config.apiToken) {
+      this.error = "Thiếu apiToken trong cấu hình Magic Mirror";
+      this.updateDom(this.config.animationSpeed);
+      return;
+    }
+
+    const infoUrl = this.config.baseUrl + "/MM/" + encodeURIComponent(this.config.username) + "/info";
+    const metricsUrl = this.config.baseUrl + "/MM/" + encodeURIComponent(this.config.username) + "/metrics/" + this.config.metricsLimit;
+    const options = {
+      headers: { Authorization: `Bearer ${this.config.apiToken}` }
+    };
 
     Promise.all([
-      fetch(infoUrl).then(res => res.json()),
-      fetch(metricsUrl).then(res => res.json())
+      fetch(infoUrl, options),
+      fetch(metricsUrl, options)
     ])
-    .then(([info, metrics]) => {
+    .then(async ([infoResponse, metricsResponse]) => {
+      if (!infoResponse.ok || !metricsResponse.ok) {
+        throw new Error(`API error: profile=${infoResponse.status}, metrics=${metricsResponse.status}`);
+      }
+      const [info, metrics] = await Promise.all([
+        infoResponse.json(),
+        metricsResponse.json()
+      ]);
       self.userInfo = info;
       self.metrics = metrics;
       self.loaded = true;

@@ -5,12 +5,11 @@
 
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import path from 'path';
 
-dotenv.config({ path: path.resolve('/home/ubuntu/DATA/projects/lucky-hub-2026/.env') });
+dotenv.config();
 
-import { SystemSettings } from '/home/ubuntu/DATA/projects/lucky-hub-2026/server/models/SystemSettings.ts';
-import { encrypt } from '/home/ubuntu/DATA/projects/lucky-hub-2026/server/utils/encryption.ts';
+import { SystemSettings } from '../server/models/SystemSettings.ts';
+import { encrypt } from '../server/utils/encryption.ts';
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/lucky_hub';
 

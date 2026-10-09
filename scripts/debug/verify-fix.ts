@@ -1,10 +1,12 @@
+import { getMongoUri } from '../mongoUri.ts';
 import mongoose from 'mongoose';
-import { AIProvider } from './server/models/AIProvider.ts';
-import { AITaskConfig } from './server/models/AITaskConfig.ts';
+import { AIProvider } from '../../server/models/AIProvider.ts';
+import { AITaskConfig } from '../../server/models/AITaskConfig.ts';
+import { AIModel } from '../../server/models/AIModel.ts';
 
 (async () => {
   mongoose.set('strictQuery', false);
-  await mongoose.connect('mongodb+srv://vnminenetworkgame_db_user:vsKaIcSSJhfiJYLn@luckyhub.myqla9g.mongodb.net/lucky_hub?retryWrites=true&w=majority', { serverSelectionTimeoutMS: 10000 });
+  await mongoose.connect(getMongoUri(), { serverSelectionTimeoutMS: 10000 });
 
   console.log('=== KIỂM TRA VỀ CẤU TRỢ HIỆU SUẤT SAU KHI SỬA ===\n');
 

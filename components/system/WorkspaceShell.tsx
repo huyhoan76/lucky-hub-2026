@@ -1,6 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { User } from '../../types.ts';
 import NotificationBell from '../notification/NotificationBell.tsx';
+import BrandFooter from './BrandFooter.tsx';
+import { SystemBranding } from '../../utils/systemBranding.ts';
 
 interface WorkspaceShellProps {
   user: User;
@@ -12,6 +14,7 @@ interface WorkspaceShellProps {
   onChatToggle?: () => void;
   isSystemLogOpen?: boolean;
   onSystemLogToggle?: () => void;
+  branding: SystemBranding;
 }
 
 type IconName = 'overview' | 'community' | 'health' | 'coach' | 'branch' | 'admin' | 'chat' | 'more' | 'profile' | 'logout' | 'menu' | 'close' | 'chevron';
@@ -38,7 +41,7 @@ const Icon: React.FC<{ name: IconName; size?: number }> = ({ name, size = 20 }) 
   </svg>
 );
 
-const WorkspaceShell: React.FC<WorkspaceShellProps> = memo(({ user, onLogout, children, activeTab, setActiveTab, isChatOpen, onChatToggle, isSystemLogOpen, onSystemLogToggle }) => {
+const WorkspaceShell: React.FC<WorkspaceShellProps> = memo(({ user, onLogout, children, activeTab, setActiveTab, isChatOpen, onChatToggle, isSystemLogOpen, onSystemLogToggle, branding }) => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
@@ -120,9 +123,9 @@ const WorkspaceShell: React.FC<WorkspaceShellProps> = memo(({ user, onLogout, ch
         .lh-workspace{--lh-ink:#172722;--lh-muted:#718079;--lh-line:#e5eae5;--lh-canvas:#f4f6f2;--lh-paper:#fff;--lh-green:#226b4b;--lh-green-dark:#194f3b;--lh-lime:#d5ef91;--lh-coral:#df795b;min-height:100vh;background:var(--lh-canvas);color:var(--lh-ink);font-family:'DM Sans','Manrope',sans-serif}
         .lh-workspace *{box-sizing:border-box}
         .lh-side{position:fixed;inset:0 auto 0 0;z-index:70;width:250px;padding:24px 16px 18px;background:var(--lh-paper);border-right:1px solid var(--lh-line);display:flex;flex-direction:column;transition:transform .24s ease}
-        .lh-brand{display:flex;align-items:center;gap:11px;padding:0 10px 26px;color:var(--lh-ink);text-decoration:none}
-        .lh-brand-mark{width:38px;height:38px;border-radius:13px;background:var(--lh-green-dark);display:grid;place-items:center;color:var(--lh-lime);box-shadow:0 7px 16px #194f3b26}
-        .lh-brand-name{font-family:'Manrope',sans-serif;font-size:19px;font-weight:800;line-height:1}
+        .lh-brand{display:flex;align-items:center;gap:11px;padding:0 10px 26px;color:var(--lh-ink);text-align:left;text-decoration:none}
+        .lh-brand-mark{width:38px;height:38px;display:grid;place-items:center}
+        .lh-brand-name{font-family:'Manrope',sans-serif;font-size:19px;font-weight:800;line-height:1;text-transform:uppercase}
         .lh-brand-tag{display:block;margin-top:5px;color:var(--lh-muted);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
         .lh-nav-scroll{flex:1;overflow:auto}
         .lh-nav-group{margin-bottom:22px}
@@ -137,10 +140,10 @@ const WorkspaceShell: React.FC<WorkspaceShellProps> = memo(({ user, onLogout, ch
         .lh-member-card img,.lh-avatar{width:36px;height:36px;flex:none;border-radius:50%;object-fit:cover;background:#dce7db}
         .lh-member-name{overflow:hidden;color:var(--lh-ink);font-size:12px;font-weight:800;text-overflow:ellipsis;white-space:nowrap}
         .lh-member-role{margin-top:3px;color:var(--lh-muted);font-size:10px}
-        .lh-main{min-height:100vh;margin-left:250px}
+        .lh-main{min-height:100vh;margin-left:250px;display:flex;flex-direction:column}
         .lh-topbar{height:72px;position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:0 32px;background:#f4f6f2ed;border-bottom:1px solid #e5eae5cc;backdrop-filter:blur(16px)}
         .lh-topbar-left,.lh-topbar-actions{display:flex;align-items:center;gap:14px}
-        .lh-page-title{margin:0;font-family:'Manrope',sans-serif;font-size:18px;font-weight:800;letter-spacing:0}
+        .lh-page-title{margin:0;font-family:'Manrope',sans-serif;font-size:20px;font-weight:800;letter-spacing:0;text-transform:uppercase}
         .lh-context{margin-top:3px;color:var(--lh-muted);font-size:11px}
         .lh-icon-button{width:40px;height:40px;display:grid;place-items:center;border:1px solid var(--lh-line);border-radius:12px;background:var(--lh-paper);color:#46564c;cursor:pointer;transition:background .16s,border-color .16s}
         .lh-icon-button:hover{background:#edf3eb;border-color:#cddccc}
@@ -156,18 +159,20 @@ const WorkspaceShell: React.FC<WorkspaceShellProps> = memo(({ user, onLogout, ch
         .lh-account-menu button{width:100%;display:flex;align-items:center;gap:10px;padding:11px;border:0;border-radius:9px;background:transparent;color:var(--lh-ink);font:600 12px inherit;text-align:left;cursor:pointer}
         .lh-account-menu button:hover{background:#f2f5ef}
         .lh-account-menu .lh-logout{margin-top:5px;border-top:1px solid var(--lh-line);border-radius:0 0 9px 9px;color:#b7503d}
-        .lh-content{width:min(100%,1440px);margin:0 auto;padding:28px 32px 56px}
+        .lh-content{width:min(100%,1440px);margin:0 auto;padding:28px 32px 56px;flex:1}
+        .lh-footer{padding:0 32px 22px;text-align:center;color:var(--lh-muted);font-size:11px;line-height:1.5}
+        .lh-footer p{margin:0}
         .lh-mobile-nav,.lh-mobile-more,.lh-drawer-backdrop{display:none}
         @media(max-width:1199px){.lh-side{transform:translateX(-102%);box-shadow:18px 0 42px #1022181a}.lh-side.is-open{transform:translateX(0)}.lh-main{margin-left:0}.lh-menu-trigger{display:grid}.lh-topbar{padding:0 24px}.lh-content{padding-inline:24px}.lh-drawer-backdrop{position:fixed;inset:0;z-index:65;display:block;background:#15231db3;backdrop-filter:blur(2px)}}
-        @media(max-width:767px){.lh-side{display:none}.lh-menu-trigger{display:none}.lh-drawer-backdrop[aria-label="Đóng menu điều hướng"]{display:none}.lh-topbar{height:60px;padding:0 15px}.lh-page-title{font-size:16px}.lh-context,.lh-account-copy,.lh-account-trigger>svg{display:none}.lh-account-trigger{padding:0;border:0}.lh-account-trigger img{width:34px;height:34px}.lh-topbar-actions{gap:8px}.lh-icon-button{width:36px;height:36px;border-radius:11px}.lh-content{padding:18px 15px calc(100px + env(safe-area-inset-bottom,0px))}.lh-mobile-nav{position:fixed;inset:auto 0 0;z-index:60;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--lh-line);background:#fffF;box-shadow:0 -8px 28px #1727220d;backdrop-filter:blur(18px)}.lh-mobile-nav button{min-width:0;min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:0;border-radius:11px;background:transparent;color:#849088;font:600 9px inherit;cursor:pointer}.lh-mobile-nav button.is-active{color:var(--lh-green-dark)}.lh-mobile-nav button.is-active .lh-mobile-icon{background:#eaf3e8;color:var(--lh-green-dark)}.lh-mobile-icon{width:31px;height:26px;display:grid;place-items:center;border-radius:9px}.lh-mobile-more{position:fixed;inset:auto 10px calc(74px + env(safe-area-inset-bottom,0px));z-index:80;display:block;padding:13px;border:1px solid var(--lh-line);border-radius:16px;background:white;box-shadow:0 16px 44px #17272221}.lh-mobile-more-heading{padding:3px 8px 10px;color:var(--lh-muted);font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.lh-mobile-more button{width:100%;min-height:45px;display:flex;align-items:center;gap:11px;padding:0 9px;border:0;border-radius:9px;background:transparent;color:var(--lh-ink);font:700 12px inherit;text-align:left}.lh-mobile-more button:hover{background:#f2f5ef}.lh-member-card{display:none}.lh-account-menu{position:fixed;top:58px;right:10px}}
+        @media(max-width:767px){.lh-side{display:none}.lh-menu-trigger{display:none}.lh-drawer-backdrop[aria-label="Đóng menu điều hướng"]{display:none}.lh-topbar{height:60px;padding:0 15px}.lh-page-title{font-size:18px}.lh-context,.lh-account-copy,.lh-account-trigger>svg{display:none}.lh-account-trigger{padding:0;border:0}.lh-account-trigger img{width:34px;height:34px}.lh-topbar-actions{gap:8px}.lh-icon-button{width:36px;height:36px;border-radius:11px}.lh-content{padding:18px 15px 28px}.lh-footer{padding:0 15px calc(82px + env(safe-area-inset-bottom,0px))}.lh-mobile-nav{position:fixed;inset:auto 0 0;z-index:60;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--lh-line);background:#fffF;box-shadow:0 -8px 28px #1727220d;backdrop-filter:blur(18px)}.lh-mobile-nav button{min-width:0;min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:0;border-radius:11px;background:transparent;color:#849088;font:600 9px inherit;cursor:pointer}.lh-mobile-nav button.is-active{color:var(--lh-green-dark)}.lh-mobile-nav button.is-active .lh-mobile-icon{background:#eaf3e8;color:var(--lh-green-dark)}.lh-mobile-icon{width:31px;height:26px;display:grid;place-items:center;border-radius:9px}.lh-mobile-more{position:fixed;inset:auto 10px calc(74px + env(safe-area-inset-bottom,0px));z-index:80;display:block;padding:13px;border:1px solid var(--lh-line);border-radius:16px;background:white;box-shadow:0 16px 44px #17272221}.lh-mobile-more-heading{padding:3px 8px 10px;color:var(--lh-muted);font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.lh-mobile-more button{width:100%;min-height:45px;display:flex;align-items:center;gap:11px;padding:0 9px;border:0;border-radius:9px;background:transparent;color:var(--lh-ink);font:700 12px inherit;text-align:left}.lh-mobile-more button:hover{background:#f2f5ef}.lh-member-card{display:none}.lh-account-menu{position:fixed;top:58px;right:10px}}
         @media(prefers-reduced-motion:reduce){.lh-workspace *{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}}
       `}</style>
 
       {isDrawerOpen && <button className="lh-drawer-backdrop" aria-label="Đóng menu điều hướng" onClick={() => setIsDrawerOpen(false)} />}
       <aside className={`lh-side${isDrawerOpen ? ' is-open' : ''}`} aria-label="Điều hướng chính">
         <button className="lh-brand" onClick={() => navigate('dashboard')}>
-          <span className="lh-brand-mark"><img src="/favicon/luckyhub.png" alt="" width="25" height="25" /></span>
-          <span><span className="lh-brand-name">Lucky Hub</span><span className="lh-brand-tag">Sống khỏe mỗi ngày</span></span>
+          <span className="lh-brand-mark"><img src={branding.logoUrl || '/favicon/luckyhub.png'} alt="" width="25" height="25" /></span>
+          <span><span className="lh-brand-name">Lucky Hub</span><span className="lh-brand-tag">{branding.slogan}</span></span>
         </button>
         <nav className="lh-nav-scroll">
           {navGroups.map(group => (
@@ -190,7 +195,7 @@ const WorkspaceShell: React.FC<WorkspaceShellProps> = memo(({ user, onLogout, ch
         <header className="lh-topbar">
           <div className="lh-topbar-left">
             <button className="lh-icon-button lh-menu-trigger" aria-label="Mở menu điều hướng" aria-expanded={isDrawerOpen} onClick={() => setIsDrawerOpen(true)}><Icon name="menu" /></button>
-            <div>{activeTab === 'admin' ? <><h1 className="lh-page-title">🛡️ Quản trị hệ thống</h1><div className="lh-context">Admin Center</div></> : <><h1 className="lh-page-title">{pageTitle}</h1><div className="lh-context">Không gian sức khỏe của {user.fullName}</div></>}</div>
+            <div>{activeTab === 'admin' ? <><h1 className="lh-page-title">🛡️ Quản trị hệ thống</h1><div className="lh-context">Admin Center</div></> : <h1 className="lh-page-title">{pageTitle}</h1>}</div>
           </div>
           <div className="lh-topbar-actions">
             <div className="lh-topbar-notifications"><NotificationBell currentUser={user} /></div>
@@ -210,6 +215,7 @@ const WorkspaceShell: React.FC<WorkspaceShellProps> = memo(({ user, onLogout, ch
           </div>
         </header>
         <main className="lh-content"><div key={activeTab} className="lh-page-enter">{children}</div></main>
+        <BrandFooter branding={branding} className="lh-footer" />
       </div>
 
       {isMoreOpen && <><button className="lh-drawer-backdrop" aria-label="Đóng menu khác" onClick={() => setIsMoreOpen(false)} /><div className="lh-mobile-more" role="menu"><div className="lh-mobile-more-heading">Không gian & tài khoản</div>{moreItems.map(item => <button key={item.id} role="menuitem" onClick={() => navigate(item.id)}><Icon name={item.icon} size={18} />{item.label}</button>)}<button role="menuitem" onClick={onLogout}><Icon name="logout" size={18} />Đăng xuất</button></div></>}

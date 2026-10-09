@@ -6,7 +6,7 @@ import { requirePermission } from '../middleware/requirePermission.ts';
 import { RESOURCES } from '../config/permissions.ts';
 import { validateBody } from '../../services/validationService.ts';
 import { emailService } from '../../services/emailService.ts';
-import { uploadToImgBB } from '../utils/imageUtils.ts';
+import { uploadBrandLogo, uploadImageToStorageProvider } from '../services/storage/imageStorageService.ts';
 // Using dynamic import for encryption to avoid tsx resolution issues
 const getEncryption = async () => {
   const { encrypt, decrypt } = await import('../utils/encryption.ts');
@@ -16,6 +16,92 @@ const getEncryption = async () => {
 const router = Router();
 router.use(authMiddleware);
 router.use(requirePermission(RESOURCES.ADMIN.PANEL));
+
+const DEFAULT_BRANDING = {
+  logoUrl: '',
+  slogan: 'SỐNG KHOẺ MỖI NGÀY',
+  copyrightLine1: '© <year> Lucky Hub. Bảo mật và đáng tin cậy.',
+  copyrightLine2: '',
+};
+const STORAGE_SECRET_FIELDS = ['apiKey', 'apiSecret', 'accessKey', 'secretKey'];
+
+function maskStorageProvider(provider: any) {
+  const config = { ...(provider.config || {}) };
+  for (const field of STORAGE_SECRET_FIELDS) {
+    if (config[field]) config[field] = '••••••••';
+  }
+  return { ...provider, config };
+}
+
+router.get('/system-branding', async (_req: Request, res: Response) => {
+  try {
+    const settings = await SystemSettings.findOne({}).select('branding').lean();
+    const branding = settings?.branding;
+    res.json({
+      logoUrl: branding?.logoUrl ?? DEFAULT_BRANDING.logoUrl,
+      slogan: branding?.slogan ?? DEFAULT_BRANDING.slogan,
+      copyrightLine1: branding?.copyrightLine1 ?? DEFAULT_BRANDING.copyrightLine1,
+      copyrightLine2: branding?.copyrightLine2 ?? DEFAULT_BRANDING.copyrightLine2,
+    });
+  } catch (error: any) {
+    console.error('[Admin] Get system branding failed:', error);
+    res.status(500).json({ message: error.message || 'Không thể tải thông tin thương hiệu.' });
+  }
+});
+
+router.put('/system-branding', async (req: Request, res: Response) => {
+  try {
+    const { slogan, copyrightLine1, copyrightLine2, logoUrl } = req.body;
+    if ([slogan, copyrightLine1, copyrightLine2].some(value => typeof value !== 'string')) {
+      return res.status(400).json({ message: 'Thông tin thương hiệu không hợp lệ.' });
+    }
+    if (slogan.length > 120 || copyrightLine1.length > 300 || copyrightLine2.length > 300) {
+      return res.status(400).json({ message: 'Slogan tối đa 120 ký tự; mỗi dòng copyright tối đa 300 ký tự.' });
+    }
+    if (typeof logoUrl !== 'string' || logoUrl.length > 2048) {
+      return res.status(400).json({ message: 'Logo không hợp lệ.' });
+    }
+    if (logoUrl) {
+      try {
+        if (new URL(logoUrl).protocol !== 'https:') return res.status(400).json({ message: 'Logo phải dùng URL HTTPS.' });
+      } catch {
+        return res.status(400).json({ message: 'Logo phải dùng URL HTTPS hợp lệ.' });
+      }
+    }
+
+    const branding = {
+      slogan: slogan.trim(),
+      copyrightLine1: copyrightLine1.trim(),
+      copyrightLine2: copyrightLine2.trim(),
+      logoUrl,
+    };
+    await SystemSettings.findOneAndUpdate(
+      {},
+      { $set: { branding, updatedBy: (req as any).user?.fullName || 'admin', updatedAt: new Date() } },
+      { new: true, upsert: true, setDefaultsOnInsert: true },
+    );
+    console.log('[SystemBranding] Updated brand configuration:', { user: (req as any).user?.fullName || 'admin' });
+    res.json({ success: true, branding, message: 'Đã lưu thông tin thương hiệu.' });
+  } catch (error: any) {
+    console.error('[Admin] Save system branding failed:', error);
+    res.status(500).json({ message: error.message || 'Không thể lưu thông tin thương hiệu.' });
+  }
+});
+
+router.post('/system-branding/logo', async (req: Request, res: Response) => {
+  try {
+    if (typeof req.body?.imageData !== 'string') {
+      return res.status(400).json({ message: 'Dữ liệu logo không hợp lệ.' });
+    }
+    const logoUrl = await uploadBrandLogo(req.body.imageData);
+    console.log('[SystemBranding] Logo uploaded:', { provider: 'configured-storage' });
+    res.json({ success: true, logoUrl });
+  } catch (error: any) {
+    console.error('[Admin] Upload system logo failed:', error);
+    const statusCode = /ảnh|logo|thiếu|provider|bucket|region|key|secret|cloud name/i.test(error.message) ? 400 : 500;
+    res.status(statusCode).json({ message: error.message || 'Không thể tải logo lên.' });
+  }
+});
 
 // ============================================================================
 // SYSTEM SETTINGS CRUD
@@ -44,13 +130,7 @@ router.get('/system-settings', async (req: Request, res: Response) => {
       },
       storage: {
         ...settings.storage,
-        providers: settings.storage.providers.map((p: any) => {
-          const masked = { ...p };
-          if (p.config?.apiKey) {
-            masked.config = { ...p.config, apiKey: `${p.config.apiKey.substring(0, 6)}••••${p.config.apiKey.substring(p.config.apiKey.length - 4)}` };
-          }
-          return masked;
-        }),
+        providers: settings.storage.providers.map(maskStorageProvider),
       },
       ai: {
         ...settings.ai,
@@ -87,9 +167,20 @@ router.post('/system-settings', async (req: Request, res: Response) => {
     if (storage) {
       const { encrypt } = await getEncryption();
       const providers = (storage.providers || []).map((p: any) => {
-        const config = { ...p.config };
-        if (config?.apiKey && !config.apiKey.includes('••••')) {
-          config.apiKey = encrypt(config.apiKey);
+        const oldProvider = settings?.storage?.providers?.find((existing: any) => existing._id.toString() === p._id);
+        const oldConfig = oldProvider?.config?.toObject?.() || oldProvider?.config || {};
+        const config = { ...oldConfig, ...(p.config || {}) };
+        for (const field of STORAGE_SECRET_FIELDS) {
+          const submittedValue = p.config?.[field];
+          const storedValue = oldConfig[field];
+          if (typeof submittedValue === 'string' && submittedValue && !submittedValue.includes('••••')) {
+            config[field] = encrypt(submittedValue);
+          } else if (storedValue) {
+            const storedSecret = String(storedValue);
+            config[field] = storedSecret.split(':').length === 3 ? storedSecret : encrypt(storedSecret);
+          } else {
+            delete config[field];
+          }
         }
         return { ...p, config };
       });
@@ -120,13 +211,7 @@ router.post('/system-settings', async (req: Request, res: Response) => {
       },
       storage: {
         ...settings.storage,
-        providers: settings.storage.providers.map((p: any) => {
-          const masked = { ...p };
-          if (p.config?.apiKey) {
-            masked.config = { ...p.config, apiKey: `${p.config.apiKey.substring(0, 6)}••••${p.config.apiKey.substring(p.config.apiKey.length - 4)}` };
-          }
-          return masked;
-        }),
+        providers: settings.storage.providers.map(maskStorageProvider),
       },
       ai: {
         ...settings.ai,
@@ -274,34 +359,19 @@ router.post('/test-storage', requirePermission(RESOURCES.AI.MANAGE), async (req:
     if (providerId) {
       provider = settings.storage.providers.find((p: any) => p._id.toString() === providerId);
     } else {
-      provider = settings.storage.providers.find((p: any) => p.isActive);
+      provider = settings.storage.providers
+        .filter((p: any) => p.isActive)
+        .sort((a: any, b: any) => a.priority - b.priority)[0];
     }
 
     if (!provider) {
       return res.status(400).json({ message: 'Không tìm thấy provider storage' });
     }
 
-    const { decrypt } = await getEncryption();
-    const apiKey = decrypt(provider.config?.apiKey);
-
     const testImageBase64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
-    const originalKey = process.env.IMGBB_API_KEY;
-    process.env.IMGBB_API_KEY = apiKey;
-
-    try {
-      const result = await uploadToImgBB(testImageBase64);
-      process.env.IMGBB_API_KEY = originalKey;
-
-      if (result?.url) {
-        res.json({ success: true, message: `Test upload thành công qua ${provider.provider}`, url: result.url });
-      } else {
-        res.status(500).json({ success: false, message: 'Upload thất bại' });
-      }
-    } catch (err) {
-      process.env.IMGBB_API_KEY = originalKey;
-      throw err;
-    }
+    const url = await uploadImageToStorageProvider(testImageBase64, provider);
+    res.json({ success: true, message: `Test upload thành công qua ${provider.provider}`, url });
   } catch (err: any) {
     console.error('[Admin] Test storage failed:', err);
     res.status(500).json({ success: false, message: err.message || 'Test storage thất bại' });

@@ -5,6 +5,7 @@ Module.register("MMM-LuckyHub-FaceSync", {
     syncInterval: 30 * 60 * 1000, // 30 phút đồng bộ 1 lần
     recognitionInterval: 2000, // 2 giây quét 1 lần
     confidenceThreshold: 0.6,
+    apiToken: "",
   },
 
   start: function() {

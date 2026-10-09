@@ -35,10 +35,16 @@ import mirrorRoutes from './routes/mirror.routes.ts';
 import nutritionGroupRoutes from './routes/nutritionGroup.routes.ts';
 import nutritionBranchRoutes from './routes/nutritionBranch.routes.ts';
 import chatGroupRoutes from './routes/chatGroup.routes.ts';
+import magicMirrorTokenRoutes from './routes/magicMirrorToken.routes.ts';
+import systemBrandingRoutes from './routes/systemBranding.routes.ts';
 
 // Services
 import { discoverModelsForAllProviders } from './services/ai/modelDiscovery.ts';
 import { initChatWebSocket } from './websocket/chatSocket.ts';
+import { magicMirrorAuth } from './middleware/magicMirrorAuth.ts';
+import { authMiddleware } from './middleware/authMiddleware.ts';
+import { requirePermission } from './middleware/requirePermission.ts';
+import { RESOURCES } from './config/permissions.ts';
 
 // Config
 import { migrationService } from '../src/services/migrationService.ts';
@@ -120,6 +126,7 @@ app.use((req, res, next) => {
 
 // Auth routes - không yêu cầu auth middleware (đã xử lý trong route)
 app.use('/api', authRoutes);
+app.use('/api/system', systemBrandingRoutes);
 
 // Protected API routes
 app.use('/api/users', userRoutes);
@@ -128,6 +135,7 @@ app.use('/api/posts', postRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/goals', goalRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/admin/magic-mirror-tokens', magicMirrorTokenRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/knowledge', knowledgeRoutes);
 app.use('/api/rules', ruleRoutes);
@@ -144,8 +152,8 @@ app.use('/api/nutrition-branches', nutritionBranchRoutes);
 // Chat Group routes
 app.use('/api/chat-groups', chatGroupRoutes);
 
-// Magic Mirror routes - KHÔNG auth
-app.use('/MM', mirrorRoutes);
+// Magic Mirror routes require a dedicated device token.
+app.use('/MM', magicMirrorAuth, mirrorRoutes);
 
 // =============================================================================
 // Legacy endpoints (vẫn giữ để tương thích)
@@ -156,7 +164,7 @@ app.get('/api/health', (req, res) => {
   res.status(statusCode).json({ status: dbState === 'connected' ? 'ok' : 'unhealthy', database: dbState });
 });
 
-app.get('/api/audit-logs', async (req, res) => {
+app.get('/api/audit-logs', authMiddleware, requirePermission(RESOURCES.SYSTEM.LOGS), async (req, res) => {
   const AuditLog = mongoose.model('AuditLog');
   const logs = await AuditLog.find().sort({ createdAt: -1 }).limit(500);
   res.json(logs);

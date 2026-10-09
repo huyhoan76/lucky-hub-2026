@@ -1,15 +1,16 @@
+import { getMongoUri } from '../mongoUri.ts';
 import dotenv from 'dotenv';
 import path from 'path';
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
-import { callGateway } from './server/services/ai/providerGateway.ts';
-import { decrypt } from './server/utils/encryption.ts';
+import { callGateway, GatewayConfig, GatewayMessage } from '../../server/services/ai/providerGateway.ts';
+import { decrypt } from '../../server/utils/encryption.ts';
 import mongoose from 'mongoose';
-import { AIProvider } from './server/models/AIProvider.ts';
+import { AIProvider } from '../../server/models/AIProvider.ts';
 
 (async () => {
   mongoose.set('strictQuery', false);
-  await mongoose.connect('mongodb+srv://vnminenetworkgame_db_user:vsKaIcSSJhfiJYLn@luckyhub.myqla9g.mongodb.net/lucky_hub?retryWrites=true&w=majority', { serverSelectionTimeoutMS: 10000 });
+  await mongoose.connect(getMongoUri(), { serverSelectionTimeoutMS: 10000 });
   
   const provider = await AIProvider.findOne({ providerId: 'selfhosted', name: '9router' }).lean();
   if (!provider) {
@@ -26,7 +27,7 @@ import { AIProvider } from './server/models/AIProvider.ts';
   const decryptedKey = decrypt(activeKey.key);
   console.log(`Using key: ${decryptedKey.substring(0, 20)}...${decryptedKey.substring(decryptedKey.length - 10)}`);
   
-  const gatewayConfig = {
+  const gatewayConfig: GatewayConfig = {
     baseUrl: provider.baseUrl,
     apiKey: decryptedKey,
     model: '9router-vision',
@@ -35,7 +36,7 @@ import { AIProvider } from './server/models/AIProvider.ts';
     authType: 'bearer',
   };
   
-  const messages = [{ role: 'user', content: 'Say hello' }];
+  const messages: GatewayMessage[] = [{ role: 'user', content: 'Say hello' }];
   const requestId = 'direct-test';
   
   console.log('Calling gateway...');

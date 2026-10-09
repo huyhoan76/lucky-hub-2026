@@ -114,7 +114,7 @@ lucky-hub-2026/
 │   ├── routes/                           # 16 router
 │   │   ├── ai.routes.ts                  (283)  # /verify-avatar /extract /bulk-extract /analyze-food /suggest-meal /coach
 │   │   ├── admin.routes.ts               (255)  # /env-keys /gemini-keys /ai-config /ai/test-vision
-│   │   ├── mirror.routes.ts              (87)   # /MM/* KHÔNG AUTH (gồm /MM/tts/greeting, /MM/config)
+│   │   ├── mirror.routes.ts              # /MM/* yêu cầu Magic Mirror token
 │   │   ├── nutritionGroup.routes.ts      (581)  # ⚠️ lớn nhất, trộn nhiều trách nhiệm
 │   │   ├── auth.routes.ts (461) · post.routes.ts (466) · metric.routes.ts (321) · user.routes.ts (288)
 │   │   ├── nutritionBranch.routes.ts (213) · group.routes.ts (204) · goal.routes.ts (185)
@@ -139,7 +139,8 @@ lucky-hub-2026/
 ├── src/
 │   ├── services/
 │   │   ├── ttsService.ts                 (104)  # Google TTS qua Gemini, hard-code danh sách model
-│   │   ├── migrationService.ts (36) · configService.ts (25)  # ⚠️ chia sẻ API key thô cho Magic Mirror
+│   │   ├── migrationService.ts (36) · configService.ts  # cấu hình không bí mật cho Magic Mirror
+│   │   ├── magicMirrorToken.routes.ts · MagicMirrorToken.ts # quản lý token Magic Mirror trong admin
 │   └── utils/{logger.ts (21), audioUtils.ts (42), cryptoUtils.ts (17), puter.v2.js}
 │
 ├── utils/{cacheManager.ts(120), performanceMonitor.ts(311), imageUtils.ts(37), formatters.ts(37), permissions.ts(19)}
@@ -244,8 +245,8 @@ admin UI (AIConfigPanel/GeminiKeyManager)  │   │       │   │      │   
 | `components/admin/ai/AIConfigPanel.tsx` | 408 | UI chọn provider + test vision model |
 | `components/admin/ai/GeminiKeyManager.tsx` | 302 | UI CRUD key (dùng chung gemini/cline) |
 | `src/services/ttsService.ts` | 104 | TTS qua Gemini, danh sách model hard-code, dùng `callAIWithRetry` |
-| `src/services/configService.ts` | 25 | `getMirrorConfig()` trả **API key thô** cho Magic Mirror |
-| `server/routes/mirror.routes.ts` | 87 | `/MM/*` không auth, gồm `/MM/config`, `/MM/tts/greeting` |
+| `src/services/configService.ts` | `getMirrorConfig()` trả thiết lập TTS không bí mật |
+| `server/routes/mirror.routes.ts` | `/MM/*` yêu cầu token được quản lý từ trang cài đặt admin |
 
 ### 4.3 Nhiệm vụ A.I (AITaskType) → model hiện tại
 
@@ -272,7 +273,7 @@ admin UI (AIConfigPanel/GeminiKeyManager)  │   │       │   │      │   
 | POST | `/api/admin/gemini-keys/check` | auth + `ai:manage` | admin.routes.ts:144 |
 | GET/PUT | `/api/admin/ai-config` | GET: auth; PUT: `ai:manage` | admin.routes.ts:186,209 |
 | POST | `/api/admin/ai/test-vision` | auth + `ai:manage` | admin.routes.ts:232 |
-| GET | `/MM/config` | ❌ không auth | trả API key thô |
+| GET | `/MM/config` | token Magic Mirror | chỉ trả thiết lập TTS không bí mật |
 
 ---
 
@@ -418,11 +419,13 @@ Xếp theo mức độ ưu tiên cho việc tái cấu trúc. Mọi mục đều
 | Nhận diện loại key bằng tiền tố `sk_` | `admin.routes.ts:149` → `key?.startsWith('sk_')` — dễ nhận diện sai |
 | `aiService.ts.bak` (344 dòng) chứa logic cũ, dễ lẫn khi đọc code | `server/services/aiService.ts.bak` |
 
-### 6.7 [CAO] `/api/admin/env-keys` và `/MM/config` để lộ API key
+### 6.7 [ĐÃ XỬ LÝ 2026-10-09] API key và dữ liệu Magic Mirror
 
-- `admin.routes.ts:23-33`: trả danh sách ENV key (mask 6 ký tự đầu/cuối nhưng vẫn lộ metadata).
-- `src/services/configService.ts:12-23`: `getMirrorConfig()` trả **`geminiApiKey` nguyên văn** (dòng 20).
-- `server/index.ts:146` mount `/MM` **không auth** → bất kỳ ai gọi `GET /MM/config` cũng lấy được key thật.
+- `GET /MM/config` không còn trả Gemini API key; TTS được gọi qua server.
+- Tất cả route `/MM` yêu cầu token Magic Mirror đang bật và chưa hết hạn; token được quản lý trong **Cài đặt Hệ thống → CẤU HÌNH MAGIC MIRROR**, lưu mã hóa kèm hash xác thực.
+- Hồ sơ chỉ trả trường cần hiển thị và truy vấn chỉ số bị giới hạn tối đa 30 bản ghi.
+- Cách tạo token và cấu hình hai module Magic Mirror được hướng dẫn trong `README.md`.
+- Route `/api/admin/env-keys` nêu trong bản rà soát cũ không có trong source hiện tại.
 
 ### 6.8 [TB] TTS đi đường vòng, không qua AI router
 
@@ -582,7 +585,7 @@ GEMINI_PROXY_URL=
 - [ ] Thêm `readGatewayText()` (§5.3) — **bắt buộc**, nếu không sẽ vỡ như §6.4.
 - [ ] Tắt/cô lập nhánh fallback Gemini (§6.3).
 - [ ] Thêm capability check cho vision (§6.5).
-- [ ] Bịt rò rỉ key: `/MM/config`, `/api/admin/env-keys` (§6.7).
+- [x] Bảo vệ route Magic Mirror, bỏ API key khỏi `/MM/config`, giới hạn dữ liệu trả về và thêm trang quản lý nhiều token (§6.7, 2026-10-09).
 - [ ] Gọi `resetProviderCache()` / `resetClineKeysCache()` sau PUT `/api/admin/ai-config` (§6.9).
 - [ ] Che key trong log; bỏ khối ANSI box (§6.11).
 - [ ] Gộp query key ra ngoài vòng lặp retry (§6.15.3).

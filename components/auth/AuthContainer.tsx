@@ -5,6 +5,8 @@ import ForgotPasswordForm from './ForgotPasswordForm';
 import ResetPasswordForm from './ResetPasswordForm';
 import EmailVerification from './EmailVerification';
 import RegistrationSuccess from './RegistrationSuccess';
+import BrandFooter from '../system/BrandFooter';
+import { SystemBranding } from '../../utils/systemBranding.ts';
 
 type AuthMode = 'login' | 'register' | 'forgot-password' | 'reset-password' | 'verify-email' | 'verify-success' | 'register-success';
 
@@ -21,9 +23,10 @@ interface AuthContainerProps {
   registeredEmail?: string;
   registrationSuccess?: boolean;
   onClearRegistrationSuccess?: () => void;
+  branding: SystemBranding;
 }
 
-const AuthContainer: React.FC<AuthContainerProps> = memo(({ onLogin, onRegister, isLoading, emailError, onCheckEmail, errorMessage, lockUntil, verifyMode, onBackFromVerify, registeredEmail, registrationSuccess, onClearRegistrationSuccess }) => {
+const AuthContainer: React.FC<AuthContainerProps> = memo(({ onLogin, onRegister, isLoading, emailError, onCheckEmail, errorMessage, lockUntil, verifyMode, onBackFromVerify, registeredEmail, registrationSuccess, onClearRegistrationSuccess, branding }) => {
   const [mode, setMode] = useState<AuthMode>(registrationSuccess ? 'register-success' : verifyMode ? 'verify-success' : 'login');
   const [resetToken, setResetToken] = useState<string>('');
 
@@ -146,12 +149,13 @@ const AuthContainer: React.FC<AuthContainerProps> = memo(({ onLogin, onRegister,
             <span>Wellness platform</span>
           </div>
           <div className="mb-5 flex items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-[24px] bg-gradient-to-br from-emerald-500 to-teal-500 shadow-[0_22px_55px_rgba(16,185,129,0.25)]">
-              <img src="/favicon/luckyhub.png" alt="Lucky Hub" className="h-10 w-10 object-contain" />
+            <div className="flex h-16 w-16 items-center justify-center">
+              <img src={branding.logoUrl || '/favicon/luckyhub.png'} alt="Lucky Hub" className="h-10 w-10 object-contain" />
             </div>
             <div>
               <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Lucky Hub</div>
               <h1 className="mt-1 text-4xl font-black tracking-tight text-slate-800">Sống khỏe với cộng đồng</h1>
+              {branding.slogan && <p className="mt-2 text-sm font-bold uppercase tracking-wide text-emerald-700">{branding.slogan}</p>}
             </div>
           </div>
           <p className="max-w-md text-base leading-7 text-slate-600">
@@ -174,18 +178,17 @@ const AuthContainer: React.FC<AuthContainerProps> = memo(({ onLogin, onRegister,
         <div className="w-full max-w-md">
           <a href="/" className="mb-6 block text-center no-underline lg:hidden">
             <div className="flex items-center justify-center mb-4">
-              <img src="/favicon/luckyhub.png" alt="Lucky Hub" className="h-24 w-24 object-contain" />
+              <img src={branding.logoUrl || '/favicon/luckyhub.png'} alt="Lucky Hub" className="h-24 w-24 object-contain" />
             </div>
             <h1 className="text-3xl font-black text-slate-800">LUCKY HUB</h1>
+            {branding.slogan && <p className="mt-2 text-xs font-bold uppercase tracking-wide text-emerald-700">{branding.slogan}</p>}
           </a>
 
           <div className="rounded-[32px] border border-slate-200 bg-white/85 p-5 shadow-[0_30px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:p-7">
             {renderAuthForm()}
           </div>
 
-          <div className="mt-6 text-center">
-            <p className="text-xs text-slate-400">© 2026 Lucky Hub. Bảo mật và đáng tin cậy.</p>
-          </div>
+          <BrandFooter branding={branding} className="mt-6 space-y-1 text-center text-xs text-slate-400" />
         </div>
       </div>
     </div>

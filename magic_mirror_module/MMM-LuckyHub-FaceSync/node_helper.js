@@ -4,22 +4,14 @@ const axios = require("axios");
 const fs = require("fs-extra");
 const path = require("path");
 const { spawn } = require("child_process");
-const https = require("https");
 const WebSocket = require("ws");
-const ttsHelper = require("./tts_helper");
 
-// Bỏ qua kiểm tra SSL nếu Raspberry Pi gặp lỗi chứng chỉ
-const axiosInstance = axios.create({
-  httpsAgent: new https.Agent({  
-    rejectUnauthorized: false
-  })
-});
+const axiosInstance = axios.create();
 
 module.exports = NodeHelper.create({
   start: function() {
     console.log("MMM-LuckyHub-FaceSync: Helper started. Waiting for CONFIG notification from frontend...");
     this.config = null;
-    this.serverConfig = null;
     this.faceDir = path.resolve(__dirname, "faces");
     this.isSyncing = false;
     this.pythonProcess = null;
@@ -32,26 +24,19 @@ module.exports = NodeHelper.create({
         console.log("MMM-LuckyHub-FaceSync: No CONFIG received after 10s. Starting with default settings...");
         this.config = {
           baseUrl: "https://luckyhub.io.vn",
-          syncInterval: 30 * 60 * 1000
+          syncInterval: 30 * 60 * 1000,
+          apiToken: ""
         };
-        this.fetchServerConfig().then(() => {
-          this.startSyncLoop();
-          this.startRecognition();
-        });
+        console.error("MMM-LuckyHub-FaceSync: Configure apiToken in the Magic Mirror module settings before starting.");
       }
     }, 10000);
   },
 
-  fetchServerConfig: async function() {
-    try {
-      const url = this.config.baseUrl + "/MM/config";
-      console.log("MMM-LuckyHub-FaceSync: Fetching server config from " + url);
-      const response = await axiosInstance.get(url);
-      this.serverConfig = response.data;
-      console.log("MMM-LuckyHub-FaceSync: Server config received. Gemini API Key status: " + (this.serverConfig.geminiApiKey ? "Available" : "Missing"));
-    } catch (err) {
-      console.error("MMM-LuckyHub-FaceSync: Error fetching server config: " + err.message);
+  getAuthorizationHeaders: function() {
+    if (!this.config || !this.config.apiToken) {
+      throw new Error("Missing apiToken in Magic Mirror module settings.");
     }
+    return { Authorization: `Bearer ${this.config.apiToken}` };
   },
 
   socketNotificationReceived: function(notification, payload) {
@@ -60,18 +45,21 @@ module.exports = NodeHelper.create({
       const isFirstConfig = !this.config;
       this.config = payload;
       console.log("MMM-LuckyHub-FaceSync: Config received. BaseURL: " + this.config.baseUrl);
-      
-      this.fetchServerConfig().then(() => {
-        if (isFirstConfig) {
-          this.startSyncLoop();
-          this.startRecognition();
-          this.connectToWebSocket();
-        } else {
-          console.log("MMM-LuckyHub-FaceSync: Config updated, restarting recognition...");
-          this.startRecognition();
-          this.connectToWebSocket();
-        }
-      });
+
+      if (!this.config.apiToken) {
+        console.error("MMM-LuckyHub-FaceSync: Configure apiToken in the Magic Mirror module settings.");
+        return;
+      }
+
+      if (isFirstConfig) {
+        this.startSyncLoop();
+        this.startRecognition();
+        this.connectToWebSocket();
+      } else {
+        console.log("MMM-LuckyHub-FaceSync: Config updated, restarting recognition...");
+        this.startRecognition();
+        this.connectToWebSocket();
+      }
     }
   },
 
@@ -127,7 +115,9 @@ module.exports = NodeHelper.create({
     try {
       const url = this.config.baseUrl + "/MM/users/sync";
       console.log("MMM-LuckyHub-FaceSync: Fetching users from " + url);
-      const response = await axiosInstance.get(url);
+      const response = await axiosInstance.get(url, {
+        headers: this.getAuthorizationHeaders()
+      });
       
       let remoteUsers = response.data;
       // Đảm bảo remoteUsers là một mảng, hỗ trợ cả trường hợp server trả về { users: [...] }
@@ -309,8 +299,10 @@ module.exports = NodeHelper.create({
         console.log(`MMM-LuckyHub-FaceSync: [TTS] Đang chuẩn bị lời chào cho người lạ...`);
       } else {
         console.log(`MMM-LuckyHub-FaceSync: [TTS] Đang chuẩn bị lời chào cho ${username}...`);
-        const infoUrl = `${this.config.baseUrl}/MM/${username}/info`;
-        const infoRes = await axiosInstance.get(infoUrl);
+        const infoUrl = `${this.config.baseUrl}/MM/${encodeURIComponent(username)}/info`;
+        const infoRes = await axiosInstance.get(infoUrl, {
+          headers: this.getAuthorizationHeaders()
+        });
         fullName = infoRes.data.fullName || username;
         prompt = `Nói một cách thân thiện và ấm áp: Xin chào ${fullName}, chúc bạn một ngày vui vẻ.`;
       }
@@ -318,44 +310,32 @@ module.exports = NodeHelper.create({
       const audioPath = path.resolve(__dirname, "greeting.wav");
       let audioBuffer = null;
 
-      // Try direct generation first (Bypasses server regional restrictions)
-      if (this.serverConfig && this.serverConfig.geminiApiKey) {
-        try {
-          console.log(`MMM-LuckyHub-FaceSync: [TTS] Attempting direct generation for ${fullName}...`);
-          audioBuffer = await ttsHelper.generateTTS(prompt, this.serverConfig.geminiApiKey, this.serverConfig.voiceName);
-          console.log(`MMM-LuckyHub-FaceSync: [TTS] Direct generation successful (${audioBuffer.length} bytes)`);
-        } catch (ttsErr) {
-          console.error(`MMM-LuckyHub-FaceSync: [TTS] Direct generation failed: ${ttsErr.message}. Falling back to server.`);
-        }
-      }
+      const ttsUrl = `${this.config.baseUrl}/MM/tts/greeting/${encodeURIComponent(fullName)}?prompt=${encodeURIComponent(prompt)}`;
+      console.log(`MMM-LuckyHub-FaceSync: [TTS] Requesting audio from server: ${ttsUrl}`);
 
-      // Fallback to server if direct failed or not possible
-      if (!audioBuffer) {
-        const ttsUrl = `${this.config.baseUrl}/api/tts/greeting/${encodeURIComponent(fullName)}?prompt=${encodeURIComponent(prompt)}`;
-        console.log(`MMM-LuckyHub-FaceSync: [TTS] Requesting audio from server: ${ttsUrl}`);
-        
-        try {
-          const response = await axiosInstance.get(ttsUrl, { responseType: 'arraybuffer' });
-          
-          if (response.status === 200 && response.data.byteLength > 0) {
-            audioBuffer = Buffer.from(response.data);
-            console.log(`MMM-LuckyHub-FaceSync: [TTS] Server audio received (${audioBuffer.length} bytes)`);
-          } else if (response.status === 204) {
-            console.warn(`MMM-LuckyHub-FaceSync: [TTS] Server returned 204 (No Content). Model might be unavailable in server's region.`);
-          } else {
-            console.warn(`MMM-LuckyHub-FaceSync: [TTS] Server returned status ${response.status} but no data.`);
-          }
-        } catch (serverErr) {
-          let msg = serverErr.message;
-          if (serverErr.response && serverErr.response.data) {
-            try {
-              // responseType 'arraybuffer' means we need to parse the JSON error from buffer
-              const errData = JSON.parse(Buffer.from(serverErr.response.data).toString());
-              msg = errData.message || msg;
-            } catch (e) {}
-          }
-          console.error(`MMM-LuckyHub-FaceSync: [TTS] Server-side fallback failed: ${msg}`);
+      try {
+        const response = await axiosInstance.get(ttsUrl, {
+          responseType: 'arraybuffer',
+          headers: this.getAuthorizationHeaders()
+        });
+
+        if (response.status === 200 && response.data.byteLength > 0) {
+          audioBuffer = Buffer.from(response.data);
+          console.log(`MMM-LuckyHub-FaceSync: [TTS] Server audio received (${audioBuffer.length} bytes)`);
+        } else if (response.status === 204) {
+          console.warn("MMM-LuckyHub-FaceSync: [TTS] Server returned 204 (No Content).");
+        } else {
+          console.warn(`MMM-LuckyHub-FaceSync: [TTS] Server returned status ${response.status} but no data.`);
         }
+      } catch (serverErr) {
+        let msg = serverErr.message;
+        if (serverErr.response && serverErr.response.data) {
+          try {
+            const errData = JSON.parse(Buffer.from(serverErr.response.data).toString());
+            msg = errData.message || msg;
+          } catch (e) {}
+        }
+        console.error(`MMM-LuckyHub-FaceSync: [TTS] Server-side request failed: ${msg}`);
       }
 
       if (audioBuffer) {

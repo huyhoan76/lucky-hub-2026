@@ -45,11 +45,19 @@ const AISettingsSchema = new mongoose.Schema({
   updatedBy: { type: String, default: 'system' },
 });
 
+const BrandingSettingsSchema = new mongoose.Schema({
+  logoUrl: { type: String, default: '' },
+  slogan: { type: String, default: 'SỐNG KHOẺ MỖI NGÀY' },
+  copyrightLine1: { type: String, default: '© <year> Lucky Hub. Bảo mật và đáng tin cậy.' },
+  copyrightLine2: { type: String, default: '' },
+});
+
 // Main System Settings
 const SystemSettingsSchema = new mongoose.Schema({
   email: EmailSettingsSchema,
   storage: StorageSettingsSchema,
   ai: AISettingsSchema,
+  branding: { type: BrandingSettingsSchema, default: () => ({}) },
   updatedBy: { type: String, default: 'system' },
 }, { timestamps: true });
 

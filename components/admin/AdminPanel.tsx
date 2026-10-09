@@ -52,7 +52,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, users, knowledge, 
   return (
     <div className="min-h-[75vh] overflow-visible rounded-[32px] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
       {/* Header Điều hướng Tab - Responsive */}
-      <div className="sticky top-[72px] z-30 border-b border-slate-200 bg-slate-50/95 p-3 backdrop-blur-md md:p-4">
+      <div className="sticky top-[60px] z-30 border-b border-slate-200 bg-slate-50/95 p-3 backdrop-blur-md md:top-[72px] md:p-4">
         <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white/80 p-1.5 shadow-sm">
           <button 
             onClick={() => setActiveTab('users')} 

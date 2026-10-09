@@ -1,9 +1,10 @@
+import { getMongoUri } from '../mongoUri.ts';
 import mongoose from 'mongoose';
-import { AITaskConfig } from './server/models/AITaskConfig.ts';
+import { AITaskConfig } from '../../server/models/AITaskConfig.ts';
 
 (async () => {
   mongoose.set('strictQuery', false);
-  await mongoose.connect('mongodb+srv://vnminenetworkgame_db_user:vsKaIcSSJhfiJYLn@luckyhub.myqla9g.mongodb.net/lucky_hub?retryWrites=true&w=majority', { serverSelectionTimeoutMS: 10000 });
+  await mongoose.connect(getMongoUri(), { serverSelectionTimeoutMS: 10000 });
 
   const tasks = ['vision', 'verify', 'food', 'chat', 'coach', 'meal-plan'];
   

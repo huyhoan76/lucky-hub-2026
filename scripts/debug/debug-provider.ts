@@ -1,10 +1,13 @@
+import { getMongoUri } from '../mongoUri.ts';
 import mongoose from 'mongoose';
-import { User } from './server/models/User.ts';
-import { ActiveSession } from './server/models/ActiveSession.ts';
+import { User } from '../../server/models/User.ts';
+import { ActiveSession } from '../../server/models/ActiveSession.ts';
+import { AIProvider } from '../../server/models/AIProvider.ts';
+import { AITaskConfig } from '../../server/models/AITaskConfig.ts';
 
 (async () => {
   mongoose.set('strictQuery', false);
-  await mongoose.connect('mongodb+srv://vnminenetworkgame_db_user:vsKaIcSSJhfiJYLn@luckyhub.myqla9g.mongodb.net/lucky_hub?retryWrites=true&w=majority', { serverSelectionTimeoutMS: 10000 });
+  await mongoose.connect(getMongoUri(), { serverSelectionTimeoutMS: 10000 });
 
   console.log('Database providers:');
   const providers = await AIProvider.find({}).lean();
@@ -13,7 +16,6 @@ import { ActiveSession } from './server/models/ActiveSession.ts';
   }
   
   // Also check what providers are referenced in task configs
-  const { AITaskConfig } = require('./server/models/AITaskConfig.ts');
   const tasks = ['vision', 'verify', 'food', 'chat', 'coach', 'meal-plan'];
   
   console.log('\nTask configs reference:');

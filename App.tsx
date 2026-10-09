@@ -23,6 +23,7 @@ import { User, AIRule, HealthMetric, Badge, WsEvent } from './types.ts';
 import { Database, BADGES_DB } from './services/database.ts';
 import { cacheManager } from './utils/cacheManager.ts';
 import wsService from './services/wsService.ts';
+import { DEFAULT_SYSTEM_BRANDING, SystemBranding } from './utils/systemBranding.ts';
 
 // Hằng số thời gian logout
 const LOGOUT_REMEMBER = 7 * 24 * 60 * 60 * 1000;  // 7 ngày nếu "Duy trì đăng nhập"
@@ -39,6 +40,7 @@ const SESSION_PING_INTERVAL = 30000;
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [systemBranding, setSystemBranding] = useState<SystemBranding>(DEFAULT_SYSTEM_BRANDING);
   const expireTimerRef = useRef<number | null>(null);
   const loginTimestampRef = useRef<number | null>(null);
   const rememberMeRef = useRef<boolean>(false);
@@ -62,6 +64,40 @@ const App: React.FC = () => {
   const [viewingPostId, setViewingPostId] = useState<string | null>(null);
   const pingIntervalRef = useRef<number | null>(null);
   const sessionIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    let hasReceivedBrandUpdate = false;
+    const loadBranding = async () => {
+      try {
+        const response = await fetch('/api/system/branding');
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Không thể tải thông tin thương hiệu.');
+        if (isMounted && !hasReceivedBrandUpdate) setSystemBranding({ ...DEFAULT_SYSTEM_BRANDING, ...data });
+      } catch (error) {
+        console.error('[SystemBranding] Public configuration load failed:', error);
+      }
+    };
+    const handleBrandingUpdate = (event: Event) => {
+      const branding = (event as CustomEvent<SystemBranding>).detail;
+      if (branding) {
+        hasReceivedBrandUpdate = true;
+        setSystemBranding({ ...DEFAULT_SYSTEM_BRANDING, ...branding });
+      }
+    };
+
+    loadBranding();
+    window.addEventListener('system-branding-updated', handleBrandingUpdate);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('system-branding-updated', handleBrandingUpdate);
+    };
+  }, []);
+
+  useEffect(() => {
+    const favicon = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');
+    if (favicon) favicon.href = systemBranding.logoUrl || '/favicon/luckyhub.png';
+  }, [systemBranding.logoUrl]);
 
   const handleLogout = useCallback((reason?: string) => {
     setCurrentUser(null);
@@ -549,6 +585,7 @@ const App: React.FC = () => {
       registrationSuccess={registrationSuccess}
       registeredEmail={registeredEmail}
       onClearRegistrationSuccess={() => setRegistrationSuccess(false)}
+      branding={systemBranding}
     />;
   }
 
@@ -561,7 +598,7 @@ const App: React.FC = () => {
       <ModalStackProvider>
       <ToastProvider>
       <ChatProvider currentUser={currentUser!} users={users} knowledge={knowledge} rules={rules} preloadedChats={preloadedChats}>
-        <Layout user={currentUser!} onLogout={handleLogout} activeTab={activeTab} setActiveTab={setActiveTab} isChatOpen={isChatOpen} onChatToggle={() => setIsChatOpen(!isChatOpen)} isSystemLogOpen={isLogOpen} onSystemLogToggle={() => setIsLogOpen(open => !open)}>
+        <Layout user={currentUser!} onLogout={handleLogout} activeTab={activeTab} setActiveTab={setActiveTab} isChatOpen={isChatOpen} onChatToggle={() => setIsChatOpen(!isChatOpen)} isSystemLogOpen={isLogOpen} onSystemLogToggle={() => setIsLogOpen(open => !open)} branding={systemBranding}>
         {activeTab === 'dashboard' && <Dashboard user={currentUser!} users={users} onAddMetric={(targetId) => handleOpenMetricForm(targetId)} refreshTrigger={refreshTrigger} />}
         {activeTab === 'community' && <NewsFeed currentUser={currentUser!} users={users} />}
         {activeTab === 'metrics' && <MetricsManagement user={currentUser!} users={users} onAddMetric={(uid) => handleOpenMetricForm(uid)} refreshTrigger={refreshTrigger} />}

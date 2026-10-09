@@ -5,19 +5,7 @@ import App from './App.tsx';
 
 declare global {
   interface Window {
-    debugLog?: (message: string, type?: string, duration?: number) => void;
     reactLoaded?: boolean;
-    PasswordCredential?: PasswordCredentialConstructor;
-  }
-  
-  interface PasswordCredential extends Credential {
-    readonly id: string;
-    readonly password: string;
-    readonly name: string;
-  }
-  
-  interface PasswordCredentialConstructor {
-    new (data: { id: string; password: string; name: string }): PasswordCredential;
   }
 }
 

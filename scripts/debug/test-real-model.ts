@@ -1,15 +1,16 @@
+import { getMongoUri } from '../mongoUri.ts';
 import dotenv from 'dotenv';
 import path from 'path';
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
-import { callGateway } from './server/services/ai/providerGateway.ts';
-import { decrypt } from './server/utils/encryption.ts';
+import { callGateway } from '../../server/services/ai/providerGateway.ts';
+import { decrypt } from '../../server/utils/encryption.ts';
 import mongoose from 'mongoose';
-import { AIProvider } from './server/models/AIProvider.ts';
+import { AIProvider } from '../../server/models/AIProvider.ts';
 
 (async () => {
   mongoose.set('strictQuery', false);
-  await mongoose.connect('mongodb+srv://vnminenetworkgame_db_user:vsKaIcSSJhfiJYLn@luckyhub.myqla9g.mongodb.net/lucky_hub?retryWrites=true&w=majority', { serverSelectionTimeoutMS: 10000 });
+  await mongoose.connect(getMongoUri(), { serverSelectionTimeoutMS: 10000 });
   
   const provider = await AIProvider.findOne({ providerId: 'selfhosted', name: '9router' }).lean();
   const activeKey = provider!.apiKeys.find(k => k.isActive);
