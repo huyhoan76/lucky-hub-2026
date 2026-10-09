@@ -32,37 +32,41 @@ const ChatSystem: React.FC<ChatSystemProps> = memo(({ onClose, currentUser }) =>
   }, [selectedChat, clearChat]);
 
   return (
-    <div className="fixed md:bottom-6 md:right-[90px] bottom-24 right-4 w-[400px] max-w-[95vw] h-[600px] max-h-[85vh] bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 flex flex-col overflow-x-hidden overflow-y-hidden z-[999] animate-in slide-in-from-bottom-6 duration-300">
-      {/* Header */}
-      <div className="p-5 bg-emerald-600 text-white flex items-center justify-between shrink-0">
+    <div className="fixed left-0 right-0 top-[60px] bottom-[calc(70px+env(safe-area-inset-bottom,0px))] z-[999] flex w-auto max-w-none flex-col overflow-hidden border-y border-slate-200 bg-white/95 shadow-[0_30px_80px_rgba(15,23,42,0.18)] backdrop-blur-xl md:bottom-6 md:left-auto md:right-4 md:top-auto md:h-[600px] md:max-h-[85vh] md:w-[400px] md:max-w-[calc(100vw-2rem)] md:rounded-[32px] md:border">
+      <div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 p-4 text-white">
         <div className="flex items-center gap-3">
           {!showContacts && (
-            <button onClick={() => setShowContacts(true)} className="p-2 hover:bg-white/10 rounded-xl transition-all">
+            <button onClick={() => setShowContacts(true)} className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-lg transition hover:bg-white/15">
               ←
             </button>
           )}
-          <div className="font-black text-xs uppercase tracking-widest">
-            {showContacts ? 'Hỗ trợ Lucky Hub' : getOtherUser(selectedChat!)?.fullName || 'Chat'}
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100">Lucky Chat</div>
+            <div className="mt-1 text-sm font-black">
+              {showContacts ? 'Hỗ trợ Lucky Hub' : getOtherUser(selectedChat!)?.fullName || 'Chat'}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-1">
           {!showContacts && selectedChat && (
-            <LoadingButton onClick={handleClearChat} variant="danger" size="sm" loadingText="..." className="!w-8 !h-8 !p-0 !rounded-full !bg-transparent !text-white hover:!bg-red-400/20 !text-sm !shadow-none" title="Xóa toàn bộ nội dung chat">
+            <LoadingButton onClick={handleClearChat} variant="danger" size="sm" loadingText="..." className="!h-8 !w-8 !rounded-full !bg-white/10 !p-0 !text-lg !shadow-none hover:!bg-red-500/25" title="Xóa toàn bộ nội dung chat">
               🗑️
             </LoadingButton>
           )}
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-full font-bold text-xl transition-all">×</button>
+          <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full text-xl font-bold transition hover:bg-white/10">×</button>
         </div>
       </div>
 
-      {/* Content */}
       {showContacts ? (
         <ContactList onSelectContact={() => setShowContacts(false)} />
       ) : selectedChat ? (
         <ChatWindow chat={selectedChat} currentUid={currentUid} />
       ) : (
-        <div className="flex-grow flex items-center justify-center">
-          <p className="text-xs text-slate-400 font-bold">Chọn một cuộc hội thoại</p>
+        <div className="flex flex-grow items-center justify-center bg-slate-50/40">
+          <div className="text-center">
+            <div className="mb-3 text-4xl">💬</div>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Chọn cuộc hội thoại</p>
+          </div>
         </div>
       )}
     </div>

@@ -295,3 +295,12 @@ export interface NutritionGroup {
 }
 
 export type NotificationType = 'reaction' | 'comment' | 'reply' | 'tag' | 'message' | 'metric_help' | 'badge' | 'system' | 'goal_completed' | 'goal_reminder';
+
+declare global {
+  interface Window {
+    debugLog?: (...args: any[]) => void;
+    PasswordCredential?: new (options: { id?: string; password?: string; [key: string]: any }) => { id?: string; password?: string };
+  }
+}
+
+export {};

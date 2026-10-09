@@ -11,6 +11,7 @@ import { ActiveSession } from '../models/ActiveSession.ts';
 import { PasswordResetToken } from '../models/PasswordResetToken.ts';
 import { LoginAttempt } from '../models/LoginAttempt.ts';
 import { AuditLog } from '../models/AuditLog.ts';
+import { Group } from '../models/Group.ts';
 import { AuditLogType } from '../../types.ts';
 import { authMiddleware } from '../middleware/authMiddleware.ts';
 import { requirePermission } from '../middleware/requirePermission.ts';
@@ -19,7 +20,6 @@ import { cryptoUtils } from '../../src/utils/cryptoUtils.ts';
 import { uploadToImgBB } from '../utils/imageUtils.ts';
 
 // Import models để đảm bảo chúng được register với Mongoose trước khi dùng mongoose.model()
-import '../models/Group.ts';
 import '../models/NutritionGroup.ts';
 import '../models/NutritionBranch.ts';
 
@@ -36,12 +36,17 @@ router.get('/me', async (req: Request, res: Response) => {
     if (!user) return res.status(404).json({ message: 'Không tìm thấy người dùng' });
 
     const userObj = user.toObject();
+    const userGroup = user.groupId
+      ? await Group.findById(user.groupId).select('name permissions').lean()
+      : null;
     
     // Sử dụng effective permissions từ authMiddleware (đã gộp Group)
     // req.user.permissions đã được tính trong authMiddleware
     res.json({
       ...userObj,
       id: user._id,
+      groupName: userGroup?.name || '',
+      groupPermissions: req.user!.permissions,
       permissions: req.user!.permissions,
       sessionId: req.headers.authorization?.substring(7) || '',
     });
@@ -161,7 +166,11 @@ router.delete('/:id',
           const adminGroups = await GroupModel.find({ permissions: RESOURCES.ADMIN.PANEL });
           let adminCount = 0;
           for (const g of adminGroups) {
-            adminCount += await User.countDocuments({ groupId: g._id });
+            const groupAdminCount = await User.collection.countDocuments({
+              groupId: { $in: [g._id, String(g._id)] }
+            });
+            adminCount += groupAdminCount;
+            console.log(`[UserRoutes] Admin delete check: group=${g.name}, users=${groupAdminCount}`);
           }
           if (adminCount <= 1) {
             return res.status(400).json({ message: 'Không thể xóa quản trị viên cuối cùng' });

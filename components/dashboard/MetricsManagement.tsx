@@ -180,42 +180,50 @@ const MetricsManagement: React.FC<MetricsManagementProps> = ({ user, users, onAd
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Quản lý chỉ số cơ thể</h2>
-          <p className="text-slate-400 text-xs font-medium mt-1 uppercase tracking-widest">Lịch sử đo lường chi tiết</p>
-        </div>
-        <div className="flex items-center gap-4">
-          {canViewAny(user) && (
-            <select 
-              value={selectedUserId} 
-              onChange={e => setSelectedUserId(e.target.value)} 
-              className="bg-emerald-50 text-emerald-700 font-bold px-4 py-2.5 rounded-xl border-none text-sm outline-none ring-1 ring-emerald-100"
-            >
-              {users.map(u => (
-                <option key={(u as any).id || (u as any)._id} value={(u as any).id || (u as any)._id}>
-                  {u.fullName} {(u as any).id === currentUid || (u as any)._id === currentUid ? '(Tôi)' : ''}
-                </option>
-              ))}
-            </select>
-          )}
-          <button onClick={() => onAddMetric(selectedUserId)} className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl shadow-lg shadow-emerald-100 font-bold hover:bg-emerald-700 transition-all">
-            <span className="md:hidden">+</span>
-            <span className="hidden md:inline">+ Thêm mới</span>
-          </button>
-          <button 
-            onClick={() => {
-              const uid = selectedUserId || currentUid;
-              Database.exportMetrics(uid, 'csv').catch(err => {
-                setActionMessage({ type: 'error', text: '❌ Không thể xuất CSV: ' + err.message });
-              });
-              console.log(`[Export] Downloading CSV for user ${uid}`);
-            }} 
-            className="bg-slate-100 text-slate-600 px-4 py-2.5 rounded-xl font-bold hover:bg-slate-200 transition-all text-sm flex items-center gap-2"
-            title="Xuất dữ liệu CSV"
-          >
-            📥 CSV
-          </button>
+      <div className="rounded-[32px] border border-slate-200 bg-gradient-to-r from-white via-emerald-50 to-teal-50 p-5 shadow-[0_20px_50px_rgba(16,185,129,0.07)] sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
+              <span>📊</span>
+              <span>Metrics</span>
+            </div>
+            <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-800 sm:text-[2rem]">Quản lý chỉ số cơ thể</h2>
+            <p className="mt-2 text-sm text-slate-500">Lịch sử đo lường chi tiết và quản lý tiến độ của bạn.</p>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            {canViewAny(user) && (
+              <select 
+                value={selectedUserId} 
+                onChange={e => setSelectedUserId(e.target.value)} 
+                className="w-full rounded-2xl border border-emerald-100 bg-white px-3 py-2 text-sm font-bold text-emerald-700 shadow-sm outline-none ring-0 transition focus:border-emerald-300 sm:w-auto"
+              >
+                {users.map(u => (
+                  <option key={(u as any).id || (u as any)._id} value={(u as any).id || (u as any)._id}>
+                    {u.fullName} {(u as any).id === currentUid || (u as any)._id === currentUid ? '(Tôi)' : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+            <div className="flex items-center gap-2">
+              <button onClick={() => onAddMetric(selectedUserId)} className="bg-emerald-600 text-white px-5 py-2.5 rounded-2xl shadow-lg shadow-emerald-100 font-bold hover:bg-emerald-700 transition-all">
+                <span className="md:hidden">＋</span>
+                <span className="hidden md:inline">+ Thêm mới</span>
+              </button>
+              <button 
+                onClick={() => {
+                  const uid = selectedUserId || currentUid;
+                  Database.exportMetrics(uid, 'csv').catch(err => {
+                    setActionMessage({ type: 'error', text: '❌ Không thể xuất CSV: ' + err.message });
+                  });
+                  console.log(`[Export] Downloading CSV for user ${uid}`);
+                }} 
+                className="bg-slate-100 text-slate-700 px-4 py-2.5 rounded-2xl font-bold hover:bg-slate-200 transition-all text-sm flex items-center gap-2"
+                title="Xuất dữ liệu CSV"
+              >
+                📥 CSV
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

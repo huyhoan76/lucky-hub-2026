@@ -138,27 +138,54 @@ const AuthContainer: React.FC<AuthContainerProps> = memo(({ onLogin, onRegister,
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-emerald-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo/Brand - Bấm vào về trang chủ */}
-        <a href="/" className="block text-center mb-8 no-underline">
-          <div className="flex items-center justify-center mb-4">
-            <img src="/favicon/luckyhub.png" alt="Lucky Hub" className="w-32 h-32 object-contain" />
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_35%),linear-gradient(135deg,#f4fbf7_0%,#f8fafc_40%,#eef6ff_100%)] px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-6xl items-center justify-center gap-8 lg:gap-12">
+        <div className="hidden w-full max-w-xl flex-col justify-center lg:flex">
+          <div className="mb-6 inline-flex w-fit items-center gap-2 rounded-full border border-emerald-200 bg-white/80 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700 shadow-sm">
+            <span>✨</span>
+            <span>Wellness platform</span>
           </div>
-          <h1 className="text-3xl font-black text-slate-800 mb-2">LUCKY HUB</h1>
-          <p className="text-slate-600 text-sm font-medium">Nền tảng quản lý dinh dưỡng thông minh</p>
-        </a>
-
-        {/* Auth Form Container */}
-        <div className="bg-white rounded-3xl shadow-2xl shadow-slate-200 p-8 border border-slate-100">
-          {renderAuthForm()}
+          <div className="mb-5 flex items-center gap-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-[24px] bg-gradient-to-br from-emerald-500 to-teal-500 shadow-[0_22px_55px_rgba(16,185,129,0.25)]">
+              <img src="/favicon/luckyhub.png" alt="Lucky Hub" className="h-10 w-10 object-contain" />
+            </div>
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Lucky Hub</div>
+              <h1 className="mt-1 text-4xl font-black tracking-tight text-slate-800">Sống khỏe với cộng đồng</h1>
+            </div>
+          </div>
+          <p className="max-w-md text-base leading-7 text-slate-600">
+            Quản lý chỉ số cơ thể, theo dõi mục tiêu, kết nối cộng đồng và nhận hỗ trợ dinh dưỡng từ đội ngũ chuyên gia trong một hệ thống thống nhất.
+          </p>
+          <div className="mt-8 grid gap-4 sm:grid-cols-3">
+            {[
+              ['📊', 'Theo dõi sức khỏe'],
+              ['🤝', 'Cộng đồng hỗ trợ'],
+              ['🎯', 'Mục tiêu rõ ràng'],
+            ].map(([icon, label]) => (
+              <div key={label} className="rounded-2xl border border-slate-200 bg-white/75 p-4 shadow-sm">
+                <div className="text-2xl">{icon}</div>
+                <div className="mt-2 text-sm font-bold text-slate-700">{label}</div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Footer */}
-        <div className="text-center mt-8">
-          <p className="text-xs text-slate-400">
-            © 2026 Lucky Hub. Bảo mật và đáng tin cậy.
-          </p>
+        <div className="w-full max-w-md">
+          <a href="/" className="mb-6 block text-center no-underline lg:hidden">
+            <div className="flex items-center justify-center mb-4">
+              <img src="/favicon/luckyhub.png" alt="Lucky Hub" className="h-24 w-24 object-contain" />
+            </div>
+            <h1 className="text-3xl font-black text-slate-800">LUCKY HUB</h1>
+          </a>
+
+          <div className="rounded-[32px] border border-slate-200 bg-white/85 p-5 shadow-[0_30px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:p-7">
+            {renderAuthForm()}
+          </div>
+
+          <div className="mt-6 text-center">
+            <p className="text-xs text-slate-400">© 2026 Lucky Hub. Bảo mật và đáng tin cậy.</p>
+          </div>
         </div>
       </div>
     </div>

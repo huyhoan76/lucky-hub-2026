@@ -108,7 +108,7 @@
         }
         @media (min-width: 768px) {
             .mobile-only { display: none; }
-            .table-desktop { display: table; }
+            .table-desktop { display: block; width: 100%; }
         }
 
         /* 🛡️ Safe area padding cho notch phones */
@@ -182,7 +182,7 @@
 }
 </script>
 </head>
-<body class="bg-slate-50 text-slate-900 overflow-x-hidden">
+<body class="overflow-x-hidden bg-[#f4f7fb] text-slate-900 antialiased">
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
 </body>

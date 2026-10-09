@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import Layout from './components/system/Layout.tsx';
+import Layout from './components/system/WorkspaceShell.tsx';
 import Dashboard from './components/dashboard/Dashboard.tsx';
 import ChatSystem from './components/chat/index.tsx';
 import ChatProvider from './components/chat/ChatProvider.tsx';
@@ -561,7 +561,7 @@ const App: React.FC = () => {
       <ModalStackProvider>
       <ToastProvider>
       <ChatProvider currentUser={currentUser!} users={users} knowledge={knowledge} rules={rules} preloadedChats={preloadedChats}>
-        <Layout user={currentUser!} onLogout={handleLogout} activeTab={activeTab} setActiveTab={setActiveTab} isChatOpen={isChatOpen} onChatToggle={() => setIsChatOpen(!isChatOpen)}>
+        <Layout user={currentUser!} onLogout={handleLogout} activeTab={activeTab} setActiveTab={setActiveTab} isChatOpen={isChatOpen} onChatToggle={() => setIsChatOpen(!isChatOpen)} isSystemLogOpen={isLogOpen} onSystemLogToggle={() => setIsLogOpen(open => !open)}>
         {activeTab === 'dashboard' && <Dashboard user={currentUser!} users={users} onAddMetric={(targetId) => handleOpenMetricForm(targetId)} refreshTrigger={refreshTrigger} />}
         {activeTab === 'community' && <NewsFeed currentUser={currentUser!} users={users} />}
         {activeTab === 'metrics' && <MetricsManagement user={currentUser!} users={users} onAddMetric={(uid) => handleOpenMetricForm(uid)} refreshTrigger={refreshTrigger} />}
@@ -581,20 +581,6 @@ const App: React.FC = () => {
         {/* ChatSystem UI - chỉ hiển thị khung chat khi mở */}
         {isChatOpen && <ChatSystem currentUser={currentUser!} onClose={() => setIsChatOpen(false)} />}
         
-        {/* Floating Action Buttons Stack */}
-        <div className="fixed bottom-6 right-6 flex flex-col gap-4 z-[1000]">
-          {/* Nút System Log - CHỈ HIỂN THỊ CHO ADMIN */}
-          {isAdmin && (
-            <button 
-              onClick={() => setIsLogOpen(!isLogOpen)}
-              className={`w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all border-4 border-white ${isLogOpen ? 'bg-slate-800 rotate-180' : 'bg-slate-700 hover:scale-110 active:scale-95'}`}
-              title="Hệ thống Log (Admin only)"
-            >
-              <span className="text-xl">{isLogOpen ? '❌' : '📟'}</span>
-            </button>
-          )}
-        </div>
-
         {/* Cửa sổ Log - CHỈ RENDER CHO ADMIN */}
         {isAdmin && <SystemLog isOpen={isLogOpen} onClose={() => setIsLogOpen(false)} />}
 

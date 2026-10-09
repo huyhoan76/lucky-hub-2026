@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, memo, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, memo, useMemo, useCallback } from 'react';
 import { User } from '../../types.ts';
 import BadgeDisplay from './BadgeDisplay.tsx';
 import NotificationBell from '../notification/NotificationBell.tsx';
@@ -14,28 +14,33 @@ interface LayoutProps {
   onChatToggle?: () => void;
 }
 
-const NAV_ITEMS = [
-  { id: 'dashboard', label: '📊', text: 'Tổng quan' },
-  { id: 'community', label: '📰', text: 'Cộng đồng' },
-  { id: 'metrics', label: '📈', text: 'Chỉ số' },
-];
-
 const getRoleInfo = (groupName?: string): { icon: string; label: string; color: string } => {
-  // Sử dụng groupName từ user để hiển thị vai trò
   switch (groupName) {
     case 'Quản trị viên':
-      return { icon: '🔑', label: 'Quản trị viên', color: 'text-red-600' };
+      return { icon: '🔑', label: 'Quản trị viên', color: 'text-rose-500' };
     case 'Huấn luyện viên':
-      return { icon: '📝', label: 'Huấn luyện viên', color: 'text-amber-600' };
+      return { icon: '🧠', label: 'Huấn luyện viên', color: 'text-amber-500' };
     default:
       return { icon: '🌱', label: groupName || 'Hội viên', color: 'text-emerald-600' };
   }
 };
 
+const tabMeta: Record<string, { label: string; icon: string; group: string }> = {
+  dashboard: { label: 'Tổng quan', icon: '🏠', group: 'Chính' },
+  community: { label: 'Cộng đồng', icon: '📰', group: 'Chính' },
+  metrics: { label: 'Chỉ số', icon: '📈', group: 'Chính' },
+  profile: { label: 'Hồ sơ', icon: '👤', group: 'Cá nhân' },
+  ndd: { label: 'NDD', icon: '🍀', group: 'Công việc' },
+  systemndd: { label: 'Nhánh NDD', icon: '🌐', group: 'Công việc' },
+  admin: { label: 'Admin', icon: '🛡️', group: 'Quản trị' },
+};
+
 const Layout: React.FC<LayoutProps> = memo(({ user, onLogout, children, activeTab, setActiveTab, isChatOpen, onChatToggle }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
 
+  const permissions = (user as any).permissions || [];
   const avatarUrl = useMemo(() => {
     if (user.avatar) return user.avatar;
     return user.gender === 'Nữ'
@@ -44,139 +49,338 @@ const Layout: React.FC<LayoutProps> = memo(({ user, onLogout, children, activeTa
   }, [user.avatar, user.gender]);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsMenuOpen(false);
-      }
+    const syncSidebarState = () => {
+      setDesktopSidebarOpen(window.innerWidth >= 1024);
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    syncSidebarState();
+    window.addEventListener('resize', syncSidebarState);
+    return () => window.removeEventListener('resize', syncSidebarState);
   }, []);
-
-  const handleMenuClick = useCallback((tab: string) => {
-    setActiveTab(tab);
-    setIsMenuOpen(false);
-  }, [setActiveTab]);
 
   const roleInfo = useMemo(() => getRoleInfo((user as any).groupName), [(user as any).groupName]);
 
-  const availableNavItems = useMemo(() => {
+  const primaryNavItems = useMemo(() => {
     const items = [
-      ...NAV_ITEMS,
-      // Hiển thị tab NDD cho user có role Coach (HLV) hoặc có permission quản lý NDD
-      // Tab NDD: hiển thị cho HLV (coach:access) hoặc người có quyền quản lý NDD
-      ...(((user as any).permissions?.includes('coach:access') || (user as any).permissions?.includes('ndd:manage')) ? [{ id: 'ndd', label: '🍀', text: 'NDD' }] : []),
-      ...((user as any).permissions?.includes('ndd:system') ? [{ id: 'systemndd', label: '🌐', text: 'Nhánh NDD' }] : []),
+      { id: 'dashboard', label: 'Tổng quan', icon: '🏠', activeIcon: '🏠' },
+      { id: 'community', label: 'Cộng đồng', icon: '📰', activeIcon: '📰' },
+      { id: 'metrics', label: 'Chỉ số', icon: '📊', activeIcon: '📈' },
     ];
-    return items;
-  }, [user]);
 
-  console.log(`[Layout] Render: user=${user.fullName}, group=${(user as any).groupName}, activeTab=${activeTab}`);
+    if (permissions.includes('coach:access') || permissions.includes('ndd:manage')) {
+      items.push({ id: 'ndd', label: 'NDD', icon: '🍀', activeIcon: '🍀' });
+    }
+
+    if (permissions.includes('ndd:system')) {
+      items.push({ id: 'systemndd', label: 'Nhánh NDD', icon: '🌐', activeIcon: '🌐' });
+    }
+
+    return items;
+  }, [permissions]);
+
+  const utilityItems = useMemo(() => {
+    const items = [
+      { id: 'profile', label: 'Hồ sơ', icon: '👤' },
+    ];
+
+    if (permissions.includes('admin:panel')) {
+      items.push({ id: 'admin', label: 'Quản trị', icon: '🛡️' });
+    }
+
+    return items;
+  }, [permissions]);
+
+  const mobileBottomItems = useMemo(() => {
+    return [
+      { id: 'dashboard', label: 'Trang chủ', icon: '🏠' },
+      { id: 'community', label: 'Cộng đồng', icon: '📰' },
+      { id: 'metrics', label: 'Số liệu', icon: '📈' },
+      { id: 'chat', label: 'Tin nhắn', icon: '💬', action: 'chat' },
+      { id: 'more', label: 'Khác', icon: '⋯', action: 'more' },
+    ];
+  }, []);
+
+  const currentSection = tabMeta[activeTab] || { label: 'Lucky Hub', icon: '✨', group: 'Chính' };
+
+  const handleNavClick = useCallback((tab: string) => {
+    setActiveTab(tab);
+    setIsMenuOpen(false);
+    setMobileNavOpen(false);
+  }, [setActiveTab]);
+
+  const handleMobilePrimaryAction = useCallback((item: { id: string; action?: string }) => {
+    if (item.action === 'chat') {
+      onChatToggle?.();
+      return;
+    }
+
+    if (item.action === 'more') {
+      setMobileNavOpen(true);
+      return;
+    }
+
+    handleNavClick(item.id);
+  }, [handleNavClick, onChatToggle]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50/50">
-      <header className="bg-white border-b border-slate-100 sticky top-0 z-50 shadow-sm safe-top">
-        <div className="container mx-auto px-3 md:px-4 h-16 md:h-20 flex items-center gap-1 sm:gap-3">
-          {/* Logo + Title */}
-          <div className="flex items-center gap-2 sm:gap-3 cursor-pointer group shrink-0" onClick={() => setActiveTab('dashboard')}>
-            <div className="w-9 h-9 sm:w-12 sm:h-12 bg-emerald-50 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-100 group-hover:scale-110 group-hover:rotate-12 transition-all p-1.5 sm:p-2">
-              <img src="/favicon/luckyhub.png" alt="Lucky Hub" className="w-full h-full object-contain" />
-            </div>
-            <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-slate-800 hidden sm:block">Lucky Hub</h1>
-          </div>
-          
-          {/* Navigation - Icon + Text, responsive */}
-          <nav className="flex-auto max-w-fit flex items-center space-x-0.5 sm:space-x-1 bg-slate-50 p-0.5 sm:p-1 rounded-xl sm:rounded-2xl overflow-x-auto no-scrollbar">
-            {availableNavItems.map(tab => (
-              <button 
-                key={tab.id} onClick={() => setActiveTab(tab.id)} 
-                className={`px-1.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-sm font-black uppercase tracking-tight sm:tracking-wide transition-all whitespace-nowrap ${activeTab === tab.id ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-              >
-                <span className="text-base sm:text-lg">{tab.label}</span>
-                <span className="hidden md:inline ml-1.5">{tab.text}</span>
+    <div className="min-h-screen bg-[#f4f7fb] text-slate-900">
+      <div className="flex min-h-screen">
+        <aside
+          className={`fixed inset-y-0 left-0 z-40 w-[280px] shrink-0 border-r border-slate-200/80 bg-white/90 backdrop-blur-xl shadow-[0_20px_60px_rgba(15,23,42,0.08)] transition-transform duration-300 lg:translate-x-0 lg:static ${desktopSidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${desktopSidebarOpen ? 'lg:flex' : 'lg:hidden'}`}
+        >
+          <div className="flex h-full flex-col">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 px-5 py-4">
+              <button onClick={() => handleNavClick('dashboard')} className="flex items-center gap-3 text-left">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 shadow-lg shadow-emerald-200">
+                  <img src="/favicon/luckyhub.png" alt="Lucky Hub" className="h-7 w-7 object-contain" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Wellness</div>
+                  <div className="text-lg font-black text-slate-800">Lucky Hub</div>
+                </div>
               </button>
-            ))}
-          </nav>
-
-          {/* Right section: Notification + Chat + Avatar */}
-          <div className="flex items-center gap-0.5 sm:gap-2 ml-auto shrink-0">
-            <NotificationBell currentUser={user} />
-            <ChatToggle isChatOpen={!!isChatOpen} onToggle={() => onChatToggle?.()} />
-
-            <div className="relative" ref={menuRef}>
-              <div 
-                className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl border-2 transition-all cursor-pointer overflow-hidden shadow-sm ${isMenuOpen ? 'border-emerald-500 scale-105 ring-4 ring-emerald-50' : 'border-slate-100 hover:border-emerald-300'}`}
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
+              <button
+                onClick={() => setDesktopSidebarOpen(false)}
+                className="hidden h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-lg text-slate-500 transition hover:bg-slate-200 lg:flex"
+                aria-label="Đóng sidebar"
               >
-                <img src={avatarUrl} alt={user.fullName} className="w-full h-full object-cover" />
-              </div>
+                ‹
+              </button>
+            </div>
 
-              {isMenuOpen && (
-                <div className="absolute right-0 mt-3 w-64 sm:w-72 bg-white rounded-3xl shadow-2xl border border-slate-100 py-4 z-[100] animate-in slide-in-from-top-2 duration-200">
-                  {/* User info: Tên + Role */}
-                  <div className="px-5 pb-3 border-b border-slate-100">
-                    <p className="text-base font-black text-slate-800">{user.fullName}</p>
-                    <p className={`text-xs font-black uppercase tracking-wider mt-0.5 ${roleInfo.color}`}>
-                      {roleInfo.icon} {roleInfo.label}
+            <div className="flex-1 overflow-y-auto px-4 py-5">
+              <div className="mb-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-white to-teal-50 p-3 ring-1 ring-emerald-100">
+                <div className="flex items-center gap-3">
+                  <div className="overflow-hidden rounded-full border-2 border-white shadow-md shadow-emerald-100">
+                    <img src={avatarUrl} alt={user.fullName} className="h-12 w-12 object-cover" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-black text-slate-800">{user.fullName}</p>
+                    <p className={`mt-1 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.18em] ${roleInfo.color}`}>
+                      <span>{roleInfo.icon}</span>
+                      <span>{roleInfo.label}</span>
                     </p>
                   </div>
+                </div>
+              </div>
 
-                  {/* Badges section */}
-                  {user.badges && user.badges.length > 0 && (
-                    <div className="px-5 py-3 border-b border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">🏆 Thành tựu đạt được</p>
-                      <BadgeDisplay badgeIds={user.badges} />
-                    </div>
-                  )}
-
-                  {/* Menu items */}
-                  <div className="px-2 mt-2 space-y-1">
-                    <button onClick={() => handleMenuClick('profile')} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 transition-all text-sm font-bold group">
-                      <span className="text-lg group-hover:scale-110 transition-transform">👤</span> Hồ sơ cá nhân
-                    </button>
-                    <button onClick={() => handleMenuClick('metrics')} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 transition-all text-sm font-bold group">
-                      <span className="text-lg group-hover:scale-110 transition-transform">📊</span> Lịch sử chỉ số
-                    </button>
-                    {((user as any).permissions?.includes('coach:access') || (user as any).permissions?.includes('ndd:manage')) && (
-                      <button onClick={() => handleMenuClick('ndd')} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-emerald-600 hover:bg-emerald-50 transition-all text-sm font-bold group">
-                        <span className="text-lg group-hover:scale-110 transition-transform">🍀</span> Quản lý NDD
-                      </button>
-                    )}
-                    {(user as any).permissions?.includes('ndd:system') && (
-                      <button onClick={() => handleMenuClick('systemndd')} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-indigo-600 hover:bg-indigo-50 transition-all text-sm font-bold group">
-                        <span className="text-lg group-hover:scale-110 transition-transform">🌐</span> Nhánh NDD
-                      </button>
-                    )}
-                    {(user as any).permissions?.includes('admin:panel') && (
-                      <button onClick={() => handleMenuClick('admin')} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-amber-600 hover:bg-amber-50 transition-all text-sm font-bold group">
-                        <span className="text-lg group-hover:scale-110 transition-transform">🛡️</span> Admin Panel
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="mt-2 pt-2 border-t border-slate-50 px-2">
-                    <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-rose-500 hover:bg-rose-50 transition-all text-sm font-black uppercase tracking-widest group">
-                      <span className="text-lg group-hover:translate-x-1 transition-transform">🔒</span> Thoát tài khoản
-                    </button>
+              <nav className="space-y-6">
+                <div>
+                  <p className="mb-2 px-2 text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Chính</p>
+                  <div className="space-y-1.5">
+                    {primaryNavItems.map((item) => {
+                      const isActive = activeTab === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => handleNavClick(item.id)}
+                          className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-bold transition ${
+                            isActive
+                              ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-200'
+                              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
+                          }`}
+                        >
+                          <span className="text-xl">{isActive ? item.activeIcon : item.icon}</span>
+                          <span>{item.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
+
+                <div>
+                  <p className="mb-2 px-2 text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Cá nhân</p>
+                  <div className="space-y-1.5">
+                    {utilityItems.map((item) => {
+                      const isActive = activeTab === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => handleNavClick(item.id)}
+                          className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-bold transition ${
+                            isActive
+                              ? 'bg-slate-900 text-white shadow-lg shadow-slate-300'
+                              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
+                          }`}
+                        >
+                          <span className="text-xl">{item.icon}</span>
+                          <span>{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </nav>
+            </div>
+
+            <div className="border-t border-slate-200/80 p-4">
+              {user.badges && user.badges.length > 0 && (
+                <div className="mb-4 rounded-2xl bg-slate-50 p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Thành tựu</p>
+                    <span className="text-xs font-bold text-slate-500">{user.badges.length}</span>
+                  </div>
+                  <BadgeDisplay badgeIds={user.badges} />
+                </div>
+              )}
+
+              <button
+                onClick={onLogout}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-black uppercase tracking-[0.14em] text-rose-600 transition hover:bg-rose-100"
+              >
+                <span>🔒</span>
+                <span>Đăng xuất</span>
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        {desktopSidebarOpen && (
+          <button
+            aria-label="Overlay sidebar"
+            onClick={() => setDesktopSidebarOpen(false)}
+            className="fixed inset-0 z-30 bg-slate-950/30 lg:hidden"
+          />
+        )}
+
+        <div className="flex min-h-screen flex-1 flex-col">
+          <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/75 backdrop-blur-xl">
+            <div className="flex h-20 items-center justify-between gap-3 px-3 sm:px-4 lg:px-6">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setDesktopSidebarOpen(!desktopSidebarOpen)}
+                  className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-xl text-slate-600 transition hover:bg-slate-200 lg:hidden"
+                  aria-label="Mở menu"
+                >
+                  ☰
+                </button>
+
+                <div className="min-w-0">
+                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{currentSection.group}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">{currentSection.icon}</span>
+                    <h2 className="truncate text-base font-black text-slate-800 sm:text-lg">{currentSection.label}</h2>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 sm:gap-3">
+                <button className="hidden h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-lg text-slate-600 transition hover:bg-slate-200 md:flex" aria-label="Tìm kiếm">
+                  🔎
+                </button>
+                <NotificationBell currentUser={user} />
+                <ChatToggle isChatOpen={!!isChatOpen} onToggle={() => onChatToggle?.()} />
+                <div className="relative" ref={undefined}>
+                  <button
+                    onClick={() => setIsMenuOpen(!isMenuOpen)}
+                    className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border-2 border-white shadow-md shadow-slate-200 transition hover:border-emerald-200"
+                    aria-label="Tài khoản"
+                  >
+                    <img src={avatarUrl} alt={user.fullName} className="h-full w-full object-cover" />
+                  </button>
+
+                  {isMenuOpen && (
+                    <div className="absolute right-0 z-50 mt-3 w-72 overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_28px_60px_rgba(15,23,42,0.15)]">
+                      <div className="border-b border-slate-100 px-4 py-4">
+                        <p className="text-base font-black text-slate-800">{user.fullName}</p>
+                        <p className={`mt-1 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.2em] ${roleInfo.color}`}>
+                          <span>{roleInfo.icon}</span>
+                          <span>{roleInfo.label}</span>
+                        </p>
+                      </div>
+
+                      <div className="p-2">
+                        {utilityItems.map((item) => (
+                          <button
+                            key={item.id}
+                            onClick={() => handleNavClick(item.id)}
+                            className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-bold text-slate-600 transition hover:bg-emerald-50 hover:text-emerald-700"
+                          >
+                            <span className="text-lg">{item.icon}</span>
+                            <span>{item.label}</span>
+                          </button>
+                        ))}
+
+                        {user.badges && user.badges.length > 0 && (
+                          <div className="mt-2 rounded-2xl bg-slate-50 p-3">
+                            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Thành tựu</p>
+                            <BadgeDisplay badgeIds={user.badges} />
+                          </div>
+                        )}
+
+                        <button
+                          onClick={onLogout}
+                          className="mt-2 flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-black uppercase tracking-[0.12em] text-rose-600 transition hover:bg-rose-50"
+                        >
+                          <span>🔒</span>
+                          <span>Thoát tài khoản</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <main className="flex-1 px-3 py-4 sm:px-4 lg:px-6 lg:py-6">
+            <div className="mx-auto max-w-[1600px]">{children}</div>
+          </main>
+        </div>
+      </div>
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/90 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 shadow-[0_-14px_35px_rgba(15,23,42,0.08)] backdrop-blur-xl lg:hidden">
+        <nav className="mx-auto flex max-w-md items-center justify-between gap-1 rounded-[26px] bg-slate-100/80 p-1.5">
+          {mobileBottomItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => handleMobilePrimaryAction(item)}
+              className={`flex flex-col items-center justify-center rounded-[22px] px-2 py-2 text-[10px] font-bold transition ${
+                item.id === activeTab ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500'
+              }`}
+            >
+              <span className="text-lg leading-none">{item.icon}</span>
+              <span className="mt-1">{item.label}</span>
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 lg:hidden">
+          <div className="w-full rounded-t-[30px] bg-white p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-[0_-20px_40px_rgba(15,23,42,0.15)]">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Khác</p>
+                <h3 className="text-lg font-black text-slate-800">Tiện ích</h3>
+              </div>
+              <button onClick={() => setMobileNavOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-lg text-slate-600">✕</button>
+            </div>
+
+            <div className="space-y-2">
+              {utilityItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleNavClick(item.id)}
+                  className="flex w-full items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-left text-sm font-bold text-slate-700"
+                >
+                  <span className="text-lg">{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+              ))}
+
+              {permissions.includes('admin:panel') && (
+                <button
+                  onClick={() => handleNavClick('admin')}
+                  className="flex w-full items-center gap-3 rounded-2xl bg-amber-50 px-4 py-3 text-left text-sm font-black uppercase tracking-[0.12em] text-amber-700"
+                >
+                  <span className="text-lg">🛡️</span>
+                  <span>Admin Panel</span>
+                </button>
               )}
             </div>
           </div>
         </div>
-      </header>
-
-      <main className="flex-grow container mx-auto px-3 md:px-4 py-4 md:py-8 relative">
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-          {children}
-        </div>
-      </main>
-
-      <footer className="bg-white border-t border-slate-100 py-10 mt-10">
-        <div className="container mx-auto px-4 text-center space-y-3">
-          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">© 2026 Lucky Hub - Chuyên gia sức khỏe của bạn</p>
-        </div>
-      </footer>
+      )}
     </div>
   );
 });

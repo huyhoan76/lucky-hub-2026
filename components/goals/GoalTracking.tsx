@@ -275,160 +275,110 @@ const GoalTracking: React.FC<GoalTrackingProps> = memo(({ currentUser, refreshTr
   const availableTypes = Object.keys(GOAL_TYPES).filter(t => !existingGoalTypes.has(t) || editingGoal?.type === t);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Mục tiêu sức khỏe</h2>
-          <p className="text-slate-400 text-xs font-medium mt-1 uppercase tracking-widest">Theo dõi tiến độ hoàn thành</p>
+    <div className="space-y-6 pb-20">
+      <div className="rounded-[32px] border border-slate-200 bg-gradient-to-r from-emerald-50 via-white to-sky-50 p-5 shadow-[0_24px_60px_rgba(16,185,129,0.08)] sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/80 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
+              <span>🎯</span>
+              <span>Goal tracking</span>
+            </div>
+            <h2 className="text-2xl font-black tracking-tight text-slate-800">Mục tiêu sức khỏe</h2>
+            <p className="mt-1 text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Theo dõi tiến độ hoàn thành</p>
+          </div>
+          {!showForm && (
+            <LoadingButton onClick={handleOpenAddForm} variant="primary" size="sm" className="!rounded-2xl !shadow-lg !shadow-emerald-100">
+              + Thêm mục tiêu
+            </LoadingButton>
+          )}
         </div>
-        {!showForm && (
-          <LoadingButton onClick={handleOpenAddForm} variant="primary" size="sm" className="!shadow-lg !shadow-emerald-100">
-            + Thêm mục tiêu
-          </LoadingButton>
-        )}
       </div>
 
-      {/* Form thêm/sửa mục tiêu */}
       {showForm && (
-        <div className="bg-white rounded-[2rem] border border-emerald-100 shadow-sm p-6 space-y-4 animate-in slide-in-from-top-2">
+        <div className="space-y-4 rounded-[28px] border border-emerald-100 bg-white p-5 shadow-[0_20px_50px_rgba(16,185,129,0.06)] sm:p-6">
           <div className="flex items-center justify-between">
-            <h3 className="font-bold text-slate-700">{editingGoal ? '✏️ Sửa mục tiêu' : '📋 Mục tiêu mới'}</h3>
-            <button onClick={() => { setShowForm(false); setEditingGoal(null); }} className="text-slate-400 hover:text-slate-600 text-sm font-bold">✕ Đóng</button>
+            <h3 className="text-lg font-black text-slate-800">{editingGoal ? 'Sửa mục tiêu' : 'Mục tiêu mới'}</h3>
+            <button onClick={() => { setShowForm(false); setEditingGoal(null); }} className="text-sm font-bold text-slate-400 transition hover:text-slate-600">✕ Đóng</button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Loại chỉ số</label>
-              <select
-                value={newGoal.type}
-                onChange={e => handleTypeChange(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-slate-50 border-none font-bold text-sm"
-                disabled={!!editingGoal}
-              >
+              <label className="mb-1 block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Loại chỉ số</label>
+              <select value={newGoal.type} onChange={e => handleTypeChange(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100" disabled={!!editingGoal}>
                 {availableTypes.map(k => {
                   const v = GOAL_TYPES[k];
                   return <option key={k} value={k}>{v.icon} {v.label} ({v.unit})</option>;
                 })}
                 {availableTypes.length === 0 && <option value="">Đã đủ các loại mục tiêu</option>}
               </select>
-              {editingGoal && (
-                <p className="text-[10px] text-amber-500 font-bold mt-1">Không thể đổi loại mục tiêu khi đang sửa</p>
-              )}
-              {!editingGoal && availableTypes.length === 0 && (
-                <p className="text-[10px] text-rose-500 font-bold mt-1">Bạn đã có mục tiêu cho tất cả các loại. Hãy sửa mục tiêu cũ.</p>
-              )}
+              {editingGoal && <p className="mt-1 text-[10px] font-bold text-amber-500">Không thể đổi loại mục tiêu khi đang sửa</p>}
+              {!editingGoal && availableTypes.length === 0 && <p className="mt-1 text-[10px] font-bold text-rose-500">Bạn đã có mục tiêu cho tất cả các loại. Hãy sửa mục tiêu cũ.</p>}
             </div>
             <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Giá trị hiện tại</label>
-              <input
-                type="number"
-                value={newGoal.startValue}
-                onChange={e => setNewGoal({...newGoal, startValue: parseFloat(e.target.value) || 0})}
-                className="w-full px-4 py-3 rounded-xl bg-slate-100 border-none font-bold text-sm text-slate-500"
-                readOnly
-              />
-              <p className="text-[10px] text-slate-400 mt-1">Tự động cập nhật từ chỉ số mới nhất</p>
+              <label className="mb-1 block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Giá trị hiện tại</label>
+              <input type="number" value={newGoal.startValue} onChange={e => setNewGoal({...newGoal, startValue: parseFloat(e.target.value) || 0})} className="w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-bold text-slate-500 outline-none" readOnly />
+              <p className="mt-1 text-[10px] text-slate-400">Tự động cập nhật từ chỉ số mới nhất</p>
             </div>
             <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Mục tiêu muốn đạt</label>
-              <input
-                type="number"
-                value={newGoal.targetValue}
-                onChange={e => setNewGoal({...newGoal, targetValue: parseFloat(e.target.value) || 0})}
-                className="w-full px-4 py-3 rounded-xl bg-slate-50 border-none font-bold text-sm"
-                step="0.1"
-              />
+              <label className="mb-1 block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Mục tiêu muốn đạt</label>
+              <input type="number" value={newGoal.targetValue} onChange={e => setNewGoal({...newGoal, targetValue: parseFloat(e.target.value) || 0})} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100" step="0.1" />
             </div>
             <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Thời gian thực hiện</label>
-              <select
-                value={newGoal.durationDays}
-                onChange={e => setNewGoal({...newGoal, durationDays: parseInt(e.target.value)})}
-                className="w-full px-4 py-3 rounded-xl bg-slate-50 border-none font-bold text-sm"
-              >
-                {DURATION_OPTIONS.map(opt => (
-                  <option key={opt.days} value={opt.days}>{opt.label}</option>
-                ))}
+              <label className="mb-1 block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Thời gian thực hiện</label>
+              <select value={newGoal.durationDays} onChange={e => setNewGoal({...newGoal, durationDays: parseInt(e.target.value)})} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100">
+                {DURATION_OPTIONS.map(opt => (<option key={opt.days} value={opt.days}>{opt.label}</option>))}
               </select>
-              <p className="text-[10px] text-slate-400 mt-1">
-                Bắt đầu: {todayStr} → Kết thúc: {calcTargetDate(newGoal.durationDays)}
-              </p>
+              <p className="mt-1 text-[10px] text-slate-400">Bắt đầu: {todayStr} → Kết thúc: {calcTargetDate(newGoal.durationDays)}</p>
             </div>
           </div>
-          <LoadingButton
-            onClick={handleSaveGoal}
-            variant="primary"
-            size="md"
-            loadingText="Đang lưu..."
-            disabled={availableTypes.length === 0 && !editingGoal}
-            className="!w-full !py-3 !rounded-xl !text-xs"
-          >
+          <LoadingButton onClick={handleSaveGoal} variant="primary" size="md" loadingText="Đang lưu..." disabled={availableTypes.length === 0 && !editingGoal} className="!w-full !rounded-2xl !py-3 !text-xs">
             {editingGoal ? '💾 CẬP NHẬT MỤC TIÊU' : '🎯 TẠO MỤC TIÊU'}
           </LoadingButton>
         </div>
       )}
 
-      {/* Danh sách mục tiêu */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {activeGoals.map(goal => {
           const gInfo = info(goal.type);
           const isCompleted = goal.status === 'completed';
-          
-          // Tính số ngày còn lại
           const now = Date.now();
           const targetTime = new Date(goal.targetDate).getTime();
           const startTime = new Date(goal.startDate).getTime();
           const totalDuration = targetTime - startTime;
           const elapsed = now - startTime;
-          const progressTime = totalDuration > 0 ? elapsed / totalDuration : 0; // % thời gian đã trôi qua
+          const progressTime = totalDuration > 0 ? elapsed / totalDuration : 0;
           const daysLeft = Math.ceil((targetTime - now) / (1000 * 60 * 60 * 24));
 
-          // Xác định màu sắc thanh progress
-          let barColor = 'bg-emerald-500'; // Mặc định: xanh lá (mới tạo)
-          if (isCompleted && daysLeft <= 2) {
-            barColor = 'bg-purple-500'; // Còn ≤ 2 ngày + đã hoàn thành → tím
-          } else if (daysLeft <= 2 && goal.progress < 100) {
-            barColor = 'bg-rose-600'; // Còn ≤ 2 ngày + chưa hoàn thành → đỏ
-          } else if (progressTime >= 0.5 && goal.progress < 100) {
-            barColor = 'bg-amber-500'; // Quá 1/2 thời gian + chưa hoàn thành → cam
-          }
+          let barColor = 'bg-emerald-500';
+          if (isCompleted && daysLeft <= 2) barColor = 'bg-purple-500';
+          else if (daysLeft <= 2 && goal.progress < 100) barColor = 'bg-rose-600';
+          else if (progressTime >= 0.5 && goal.progress < 100) barColor = 'bg-amber-500';
 
-          // Màu border card (đậm để nổi bật)
           let borderColor = 'border-slate-200';
-          if (isCompleted) {
-            borderColor = 'border-emerald-400';
-          } else if (daysLeft <= 2) {
-            borderColor = 'border-rose-400';
-          } else if (progressTime >= 0.5) {
-            borderColor = 'border-amber-400';
-          }
+          if (isCompleted) borderColor = 'border-emerald-400';
+          else if (daysLeft <= 2) borderColor = 'border-rose-400';
+          else if (progressTime >= 0.5) borderColor = 'border-amber-400';
 
-          // Màu chữ cho "còn lại xx ngày"
           let daysLeftColor = 'text-emerald-500';
-          if (daysLeft <= 2) {
-            daysLeftColor = 'text-rose-500';
-          } else if (daysLeft <= 7) {
-            daysLeftColor = 'text-amber-500';
-          }
+          if (daysLeft <= 2) daysLeftColor = 'text-rose-500';
+          else if (daysLeft <= 7) daysLeftColor = 'text-amber-500';
 
           return (
-            <div key={goal.id} className={`bg-white rounded-[2rem] border p-6 shadow-sm transition-all ${borderColor} ${isCompleted ? 'bg-emerald-50/30' : ''}`}>
-              <div className="flex items-center justify-between mb-4">
+            <div key={goal.id} className={`rounded-[28px] border bg-white p-5 shadow-[0_18px_42px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 ${borderColor} ${isCompleted ? 'bg-emerald-50/30' : ''}`}>
+              <div className="mb-4 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">{gInfo.icon}</span>
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl">{gInfo.icon}</span>
                   <div>
-                    <h3 className="font-black text-slate-800">{gInfo.label}</h3>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                      {goal.startValue} → {goal.targetValue} {gInfo.unit}
-                    </p>
+                    <h3 className="text-lg font-black text-slate-800">{gInfo.label}</h3>
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{goal.startValue} → {goal.targetValue} {gInfo.unit}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {isCompleted ? (
-                    <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider">🏆 Hoàn thành</span>
+                    <span className="rounded-xl bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">🏆 Hoàn thành</span>
                   ) : (
                     <>
-                      <button onClick={() => handleOpenEditForm(goal)} className="text-blue-400 hover:text-blue-600 text-xs font-bold px-2 py-1 rounded-lg hover:bg-blue-50 transition-all">✏️ Sửa</button>
-                      <LoadingButton onClick={() => handleCancelGoal(goal.id)} variant="danger" size="sm" loadingText="..." className="!px-2 !py-1 !rounded-lg !text-xs !bg-transparent !text-rose-400 hover:!text-rose-600 hover:!bg-rose-50 !shadow-none">
+                      <button onClick={() => handleOpenEditForm(goal)} className="rounded-xl px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-blue-500 transition hover:bg-blue-50">✏️ Sửa</button>
+                      <LoadingButton onClick={() => handleCancelGoal(goal.id)} variant="danger" size="sm" loadingText="..." className="!rounded-xl !bg-transparent !px-2 !py-1 !text-[10px] !font-black !uppercase !tracking-[0.12em] !text-rose-500 hover:!bg-rose-50 !shadow-none">
                         ✕ Hủy
                       </LoadingButton>
                     </>
@@ -436,27 +386,24 @@ const GoalTracking: React.FC<GoalTrackingProps> = memo(({ currentUser, refreshTr
                 </div>
               </div>
 
-              {/* Progress Bar với màu sắc động */}
-              <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden mb-2">
+              <div className="mb-2 h-3 w-full overflow-hidden rounded-full bg-slate-100">
                 <div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${Math.min(100, goal.progress)}%` }} />
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-black text-slate-500">{goal.progress}%</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-slate-400">{goal.startDate} → {goal.targetDate}</span>
-                  {!isCompleted && (
-                    <span className={`text-[10px] font-black ${daysLeftColor}`}>
-                      (còn {daysLeft} ngày)
-                    </span>
-                  )}
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-black text-slate-600">{goal.progress}%</span>
+                <div className="flex items-center gap-2 text-[10px]">
+                  <span className="text-slate-400">{goal.startDate} → {goal.targetDate}</span>
+                  {!isCompleted && <span className={`font-black ${daysLeftColor}`}>(còn {daysLeft} ngày)</span>}
                 </div>
               </div>
             </div>
           );
         })}
         {activeGoals.length === 0 && (
-          <div className="col-span-full p-16 text-center text-slate-400 font-medium italic bg-white rounded-[2rem] border border-slate-100">
-            Chưa có mục tiêu nào. Hãy tạo mục tiêu sức khỏe đầu tiên của bạn! 🎯
+          <div className="col-span-full rounded-[28px] border border-slate-200 bg-white p-16 text-center text-slate-400">
+            <div className="mb-3 text-4xl">🎯</div>
+            <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">Chưa có mục tiêu nào</div>
+            <p className="mt-2 text-xs text-slate-400">Hãy tạo mục tiêu sức khỏe đầu tiên của bạn!</p>
           </div>
         )}
       </div>

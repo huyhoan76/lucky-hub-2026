@@ -197,28 +197,42 @@ const NDDDashboard: React.FC<NDDDashboardProps> = memo(({ currentUser }) => {
 
   if (!selectedNdd) {
     return (
-      <div className="max-w-4xl mx-auto space-y-6 pb-20">
+      <div className="mx-auto max-w-5xl space-y-6 pb-20">
         {actionMsg && (
           <div className={`px-6 py-4 rounded-2xl shadow-lg font-bold text-sm flex items-center justify-between ${actionMsg.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
             <span>{actionMsg.text}</span>
             <button onClick={() => setActionMsg(null)} className="opacity-50 hover:opacity-100">✕</button>
           </div>
         )}
-        <h2 className="font-black text-slate-800 text-lg uppercase tracking-widest">🏥 Danh sách NDD</h2>
-        <p className="text-xs text-slate-400">Chọn NDD để quản lý hội viên</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        <div className="rounded-[28px] border border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-teal-50 p-5 shadow-[0_20px_50px_rgba(16,185,129,0.08)] sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/80 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
+                <span>🍀</span>
+                <span>Nutrition groups</span>
+              </div>
+              <h2 className="text-2xl font-black tracking-tight text-slate-800">Danh sách NDD</h2>
+            </div>
+            <div className="rounded-2xl border border-white/80 bg-white/80 px-3 py-2 text-sm font-bold text-slate-600 shadow-sm">
+              {dashboardData.length} nhóm đang hoạt động
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {dashboardData.map((item: any, idx: number) => {
             const group = item.group;
             const memberMetrics = item.memberMetrics || [];
             return (
-              <div key={idx} onClick={() => { setSelectedNdd(item); setShowCoOwnerEditor(false); setShowPending(false); }} className="bg-white rounded-[2rem] border border-emerald-200 shadow-sm overflow-hidden hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer group">
-                <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 px-5 py-4">
-                  <h3 className="text-white font-black text-sm">{group.name}</h3>
-                  <p className="text-emerald-100 text-[10px] mt-0.5">{group.address || 'Chưa có địa chỉ'}</p>
+              <div key={idx} onClick={() => { setSelectedNdd(item); setShowCoOwnerEditor(false); setShowPending(false); }} className="group cursor-pointer overflow-hidden rounded-[30px] border border-emerald-200 bg-white shadow-[0_18px_45px_rgba(16,185,129,0.08)] transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-[0_22px_50px_rgba(16,185,129,0.12)]">
+                <div className="bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-4">
+                  <h3 className="text-lg font-black text-white">{group.name}</h3>
+                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-100">{group.address || 'Chưa có địa chỉ'}</p>
                 </div>
-                <div className="p-4 flex items-center justify-between text-xs">
-                  <span className="text-slate-600">👥 <strong>{memberMetrics.length}</strong> hội viên</span>
-                  <span className="text-emerald-600 font-bold group-hover:translate-x-1 transition-transform">Xem chi tiết →</span>
+                <div className="flex items-center justify-between p-4 text-xs">
+                  <span className="font-semibold text-slate-600">👥 <strong className="text-slate-800">{memberMetrics.length}</strong> hội viên</span>
+                  <span className="font-black text-emerald-600 transition group-hover:translate-x-1">Xem chi tiết →</span>
                 </div>
               </div>
             );

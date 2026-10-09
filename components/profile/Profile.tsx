@@ -120,21 +120,31 @@ const Profile: React.FC<ProfileProps> = memo(({ user, onUpdate, onNavigateToAdmi
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="mx-auto max-w-4xl space-y-6 pb-24">
       {(user as any).permissions?.includes('admin:panel') && (
-        <div className="bg-amber-50 border border-amber-200 rounded-[2rem] p-6 flex items-center justify-between shadow-sm">
+        <div className="flex flex-col gap-3 rounded-[28px] border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-orange-50 p-5 shadow-[0_20px_50px_rgba(245,158,11,0.08)] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-amber-500 rounded-2xl flex items-center justify-center text-3xl shadow-lg shadow-amber-200">🛡️</div>
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-3xl shadow-lg shadow-amber-200">🛡️</div>
             <div>
-              <h4 className="font-black text-amber-800 text-sm uppercase tracking-widest">Quản trị viên</h4>
-              <p className="text-xs text-amber-600 font-medium">Bạn có quyền truy cập hệ thống quản trị.</p>
+              <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-700">Quản trị viên</h4>
+              <p className="mt-1 text-sm text-amber-700">Bạn có quyền truy cập hệ thống quản trị.</p>
             </div>
           </div>
-          <button onClick={onNavigateToAdmin} className="bg-amber-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-md transition-all active:scale-95">Admin Panel</button>
+          <button onClick={onNavigateToAdmin} className="rounded-2xl bg-amber-600 px-5 py-3 text-sm font-black text-white shadow-md shadow-amber-200 transition hover:bg-amber-700 active:scale-95">Admin Panel</button>
         </div>
       )}
 
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+      <div className="overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+        <div className="bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-500 p-5 text-white sm:p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100">Hồ sơ</div>
+              <h3 className="mt-2 text-2xl font-black">{user.fullName}</h3>
+            </div>
+            <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-bold text-emerald-50">{user.username}</div>
+          </div>
+        </div>
+
         <AvatarEditor 
           currentAvatar={localData.avatar} 
           gender={localData.gender} 
@@ -142,12 +152,12 @@ const Profile: React.FC<ProfileProps> = memo(({ user, onUpdate, onNavigateToAdmi
           onAvatarChange={(avatar) => handleDataUpdate({ avatar })} 
         />
         
-        <div className="px-8 pt-16 flex flex-col gap-1">
+        <div className="px-6 pb-2 pt-6 sm:px-8">
           <div className="flex items-center gap-3">
-            <h3 className="text-xl font-bold text-slate-800">{user.fullName}</h3>
+            <h3 className="text-xl font-black text-slate-800">{user.fullName}</h3>
             <BadgeDisplay badgeIds={user.badges} size="md" />
           </div>
-          <p className="text-xs text-slate-400 font-medium">@{user.username}</p>
+          <p className="mt-1 text-xs font-medium text-slate-400">@{user.username}</p>
         </div>
 
         {/* Nutrition Group (NDD) Card */}

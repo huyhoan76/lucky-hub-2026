@@ -259,7 +259,22 @@ const NewsFeed: React.FC<NewsFeedProps> = memo(({ currentUser, users = [] }) => 
   ).sort();
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 pb-20">
+    <div className="mx-auto max-w-3xl space-y-6 pb-24">
+      <div className="rounded-[32px] border border-slate-200 bg-gradient-to-r from-white via-sky-50 to-emerald-50 p-4 shadow-[0_20px_50px_rgba(15,23,42,0.05)] sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/80 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-sky-700">
+              <span>🧭</span>
+              <span>Cộng đồng</span>
+            </div>
+            <h2 className="mt-3 text-xl font-black text-slate-800 sm:text-2xl">Chia sẻ và kết nối</h2>
+          </div>
+          <div className="rounded-2xl border border-white/80 bg-white/80 px-3 py-2 text-sm font-bold text-slate-600 shadow-sm">
+            {posts.length} bài viết mới
+          </div>
+        </div>
+      </div>
+
       <PostCreator 
         currentUser={currentUser} inputText={inputText} setInputText={setInputText} 
         selectedImages={selectedImages} setSelectedImages={setSelectedImages} 
@@ -271,7 +286,7 @@ const NewsFeed: React.FC<NewsFeedProps> = memo(({ currentUser, users = [] }) => 
 
       {/* Hashtag Cloud Filter */}
       {allHashtags.length > 0 && (
-        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-4">
+        <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => setActiveHashtag(null)}
@@ -308,8 +323,8 @@ const NewsFeed: React.FC<NewsFeedProps> = memo(({ currentUser, users = [] }) => 
 
       <div className="space-y-6">
         {posts.length === 0 && !isLoading ? (
-          <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-10 text-center">
-            <p className="text-slate-400 font-bold text-sm">
+          <div className="rounded-[32px] border border-slate-200 bg-white p-10 text-center shadow-sm">
+            <p className="text-sm font-bold text-slate-400">
               {activeHashtag 
                 ? `Chưa có bài viết nào với hashtag ${activeHashtag}`
                 : 'Chưa có bài viết nào. Hãy là người đầu tiên chia sẻ!'}

@@ -131,11 +131,19 @@ const BranchManager: React.FC = () => {
         </div>
       )}
 
-      <div className="flex justify-between items-center">
-        <h2 className="font-black text-slate-800 text-sm uppercase tracking-widest">🌐 Quản lý Nhánh NDD</h2>
-        <button onClick={() => setIsCreating(true)} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl shadow-lg font-bold text-xs hover:bg-indigo-700 transition-all">
-          + Tạo nhánh mới
-        </button>
+      <div className="rounded-[28px] border border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-sky-50 p-5 shadow-[0_20px_50px_rgba(99,102,241,0.08)]">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-white/80 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-indigo-700">
+              <span>🌐</span>
+              <span>Branch system</span>
+            </div>
+            <h2 className="text-2xl font-black tracking-tight text-slate-800">Quản lý Nhánh NDD</h2>
+          </div>
+          <button onClick={() => setIsCreating(true)} className="rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-700">
+            + Tạo nhánh mới
+          </button>
+        </div>
       </div>
 
       {/* Create Form */}

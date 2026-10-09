@@ -102,24 +102,16 @@ const ChatWindow: React.FC<ChatWindowProps> = memo(({ chat, currentUid }) => {
   const AI_PROMPT_TEXT = aiPromptText || "Trợ lý Lucky AI có thông tin về vấn đề bạn đang đề cập, bạn có muốn tham khảo không?";
 
   return (
-    <div className="flex-grow flex flex-col min-h-0 bg-slate-50/30">
-      {/* Messages area */}
-      <div 
-        ref={scrollRef} 
-        onScroll={handleScroll}
-        className="flex-grow p-4 overflow-y-auto overflow-x-hidden space-y-4 scrollbar-thin scrollbar-thumb-slate-200" 
-        style={{ overscrollBehavior: 'contain' }}
-      >
+    <div className="flex min-h-0 flex-grow flex-col bg-slate-50/40">
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-grow space-y-4 overflow-y-auto overflow-x-hidden p-4" style={{ overscrollBehavior: 'contain' }}>
         {messageGroups.map((group, gi) => (
           <div key={gi}>
-            {/* Date separator */}
-            <div className="flex items-center justify-center mb-4">
-              <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest bg-slate-100 px-3 py-1 rounded-full">
+            <div className="mb-4 flex items-center justify-center">
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
                 {group.date}
               </span>
             </div>
 
-            {/* Messages */}
             {group.messages.map((msg) => {
               const isMyMessage = msg.senderId === currentUid;
               const isAiPrompt = msg.content === AI_PROMPT_TEXT;
@@ -143,42 +135,35 @@ const ChatWindow: React.FC<ChatWindowProps> = memo(({ chat, currentUid }) => {
           </div>
         ))}
 
-        {/* Empty state */}
         {chat.messages.length === 0 && (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center space-y-3">
+          <div className="flex h-full items-center justify-center">
+            <div className="space-y-3 text-center">
               <div className="text-4xl">💬</div>
-              <p className="text-xs font-bold text-slate-400">Chưa có tin nhắn nào</p>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Chưa có tin nhắn nào</p>
               <p className="text-[10px] text-slate-300">Hãy gửi lời chào đầu tiên nhé!</p>
             </div>
           </div>
         )}
 
-        {/* AI Typing indicator */}
         {isTypingAI && (
           <div className="flex flex-col items-start px-2">
-            <div className="bg-amber-50 border border-amber-100 text-amber-600 p-3 rounded-xl rounded-tl-none flex items-center gap-2">
-              <span className="text-[10px] font-bold">🍀Trợ lý Lucky</span>
-              <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce"></span>
-              <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-              <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+            <div className="flex items-center gap-2 rounded-2xl rounded-tl-none border border-amber-100 bg-amber-50 p-3 text-amber-600">
+              <span className="text-[10px] font-black">🍀 Trợ lý Lucky</span>
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-amber-400" />
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-amber-400 [animation-delay:0.2s]" />
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-amber-400 [animation-delay:0.4s]" />
             </div>
           </div>
         )}
       </div>
 
-      {/* Scroll to bottom button */}
       {!isAtBottomRef.current && chat.messages.length > 0 && (
-        <button 
-          onClick={handleScrollToBottom} 
-          className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-white text-emerald-600 px-4 py-2 rounded-full shadow-xl border border-emerald-100 hover:bg-emerald-50 transition-all z-10 flex items-center gap-2 animate-in slide-in-from-bottom-2 duration-200"
-        >
-          <span className="text-lg font-bold animate-bounce">↓</span>
-          <span className="font-bold text-xs">Tin nhắn mới</span>
+        <button onClick={handleScrollToBottom} className="absolute bottom-20 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full border border-emerald-100 bg-white px-4 py-2 text-xs font-black text-emerald-600 shadow-xl transition hover:bg-emerald-50">
+          <span className="animate-bounce text-lg">↓</span>
+          <span>Tin nhắn mới</span>
         </button>
       )}
 
-      {/* Input */}
       <MessageInput onSend={sendMessage} onTyping={sendTyping} />
     </div>
   );

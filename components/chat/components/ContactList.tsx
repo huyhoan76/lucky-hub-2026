@@ -89,50 +89,39 @@ const ContactList: React.FC<ContactListProps> = memo(({ onSelectContact }) => {
   }, []);
 
   return (
-    <div className="flex-grow overflow-y-auto overflow-x-hidden no-scrollbar" style={{ overscrollBehavior: 'contain' }}>
-      {/* Search bar */}
-      <div className="px-4 pt-4 pb-2">
+    <div className="flex-grow overflow-y-auto overflow-x-hidden bg-slate-50/40" style={{ overscrollBehavior: 'contain' }}>
+      <div className="px-4 pb-2 pt-4">
         <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">🔍</span>
           <input
             type="text"
             value={searchTerm}
             onChange={handleSearchChange}
             placeholder="Tìm kiếm hội thoại..."
-            className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-medium text-slate-600 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300 transition-all"
+            className="w-full rounded-2xl border border-slate-200 bg-white px-9 py-2.5 text-xs font-medium text-slate-600 placeholder:text-slate-300 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
           />
           {searchTerm && (
-            <button
-              onClick={() => setSearchTerm('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center text-slate-300 hover:text-slate-500 transition-colors text-[10px]"
-            >
+            <button onClick={() => setSearchTerm('')} className="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center text-[10px] text-slate-300 transition hover:text-slate-500">
               ✕
             </button>
           )}
         </div>
       </div>
 
-      {/* Label */}
-      <div className="px-4 mb-2">
-        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-          💬 Hội thoại của bạn
-        </div>
+      <div className="mb-2 px-4">
+        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">💬 Hội thoại của bạn</div>
       </div>
 
       {filteredChats.length === 0 ? (
-        <div className="p-8 text-center space-y-4">
+        <div className="space-y-4 p-8 text-center">
           <div className="text-4xl">🏜️</div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-            {searchTerm ? 'Không tìm thấy kết quả' : 'Chưa có ai để chat'}
-          </p>
-          {!searchTerm && (
-            <p className="text-[10px] text-slate-300">Nếu bạn là thành viên, hãy chờ Admin hoặc Coach xuất hiện nhé!</p>
-          )}
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">{searchTerm ? 'Không tìm thấy kết quả' : 'Chưa có ai để chat'}</p>
+          {!searchTerm && <p className="text-[10px] text-slate-300">Nếu bạn là thành viên, hãy chờ Admin hoặc Coach xuất hiện nhé!</p>}
         </div>
       ) : filteredChats.map(chat => {
         const other = getOtherUser(chat);
         if (!other) return null;
-        
+
         const otherId = (other as any).id || (other as any)._id;
         const isOnline = onlineUsers.has(otherId);
         const unreadCount = unreadCounts[chat.id] || 0;
@@ -141,61 +130,28 @@ const ContactList: React.FC<ContactListProps> = memo(({ onSelectContact }) => {
         const isAiCoach = chat.coachId === 'ai_coach';
 
         return (
-          <div 
-            key={chat.id} 
-            onClick={() => handleSelect(chat)} 
-            className={`mx-4 mb-2 p-4 rounded-2xl cursor-pointer transition-all border flex items-center gap-3 group ${
-              isSelected 
-                ? 'bg-emerald-50 border-emerald-200 shadow-sm' 
-                : 'bg-white border-slate-50 hover:shadow-md hover:scale-[1.02]'
-            }`}
-          >
-            {/* Avatar */}
+          <div key={chat.id} onClick={() => handleSelect(chat)} className={`mx-4 mb-2 flex cursor-pointer items-center gap-3 rounded-[24px] border p-3.5 transition ${isSelected ? 'border-emerald-200 bg-emerald-50 shadow-sm' : 'border-transparent bg-white hover:border-slate-200 hover:shadow-sm'}`}>
             <div className="relative shrink-0">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm overflow-hidden ${
-                isAiCoach ? 'bg-amber-100 text-amber-600' : 'bg-emerald-50 text-emerald-600'
-              }`}>
-                {(other as any).avatar ? (
-                  <img src={(other as any).avatar} alt={other.fullName} className="w-full h-full object-cover" />
-                ) : (
-                  <span>{isAiCoach ? '🍀' : other.fullName.charAt(0)}</span>
-                )}
+              <div className={`flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl text-sm font-black ${isAiCoach ? 'bg-amber-100 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                {(other as any).avatar ? <img src={(other as any).avatar} alt={other.fullName} className="h-full w-full object-cover" /> : <span>{isAiCoach ? '🍀' : other.fullName.charAt(0)}</span>}
               </div>
-              {/* Online dot */}
-              {isOnline && (
-                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
-              )}
+              {isOnline && <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />}
             </div>
 
-            {/* Info */}
-            <div className="flex-1 min-w-0">
-              <div className="flex justify-between items-center">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <div className={`font-bold text-xs truncate group-hover:text-emerald-600 transition-colors ${
-                    isSelected ? 'text-emerald-700' : ''
-                  }`}>
-                    {other.fullName}
-                  </div>
-                  {isOnline && (
-                    <span className="text-[8px] text-emerald-500 font-bold">🟢 online</span>
-                  )}
+                  <div className={`truncate text-xs font-black ${isSelected ? 'text-emerald-700' : 'text-slate-700'}`}>{other.fullName}</div>
+                  {isOnline && <span className="text-[8px] font-black text-emerald-500">🟢 online</span>}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[8px] font-black uppercase text-slate-400">
-                    {isAiCoach ? 'AI' : (other as any).role === 'ADMIN' ? 'ADMIN' : (other as any).role === 'COACH' ? 'COACH' : ''}
-                  </span>
-                  {/* Unread badge */}
-                  {unreadCount > 0 && (
-                    <span className="bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </span>
-                  )}
+                  <span className="text-[8px] font-black uppercase tracking-[0.12em] text-slate-400">{isAiCoach ? 'AI' : (other as any).role === 'ADMIN' ? 'ADMIN' : (other as any).role === 'COACH' ? 'COACH' : ''}</span>
+                  {unreadCount > 0 && <span className="min-w-[18px] rounded-full bg-red-500 px-1.5 py-0.5 text-center text-[8px] font-black text-white">{unreadCount > 99 ? '99+' : unreadCount}</span>}
                 </div>
               </div>
 
-              {/* Last message preview */}
               {lastMessage && (
-                <p className="text-[10px] text-slate-400 mt-1 truncate">
+                <p className="mt-1 truncate text-[10px] text-slate-400">
                   {lastMessage.senderId === otherId ? '' : 'Bạn: '}
                   {lastMessage.content?.substring(0, 50)}
                   {lastMessage.content?.length > 50 ? '...' : ''}
@@ -206,14 +162,10 @@ const ContactList: React.FC<ContactListProps> = memo(({ onSelectContact }) => {
         );
       })}
 
-      {/* Chat Groups Section */}
       {chatGroups.length > 0 && (
         <>
-          <div className="px-4 mb-2 mt-4">
-            <button
-              onClick={() => setShowGroups(!showGroups)}
-              className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 hover:text-slate-600 transition-colors"
-            >
+          <div className="mb-2 mt-4 px-4">
+            <button onClick={() => setShowGroups(!showGroups)} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 transition hover:text-slate-600">
               👥 Nhóm ({chatGroups.length}) {showGroups ? '▲' : '▼'}
             </button>
           </div>

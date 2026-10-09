@@ -53,67 +53,53 @@ const NotificationPanel: React.FC<NotificationPanelProps> = memo(({
   };
 
   return (
-    <div className="fixed sm:absolute left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 right-auto sm:right-0 mt-3 w-[calc(100vw-2rem)] sm:w-80 bg-white rounded-3xl shadow-2xl border border-slate-100 z-[100] animate-in slide-in-from-top-2 duration-200 overflow-hidden">
-      {/* Header */}
-      <div className="px-5 py-4 border-b border-slate-50 flex items-center justify-between">
+    <div className="fixed left-1/2 z-[100] mt-3 w-[calc(100vw-2rem)] -translate-x-1/2 overflow-hidden rounded-[28px] border border-slate-200 bg-white/95 shadow-[0_30px_80px_rgba(15,23,42,0.18)] backdrop-blur-xl sm:absolute sm:left-auto sm:right-0 sm:w-80 sm:translate-x-0">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-slate-50 to-emerald-50 px-5 py-4">
         <div>
           <p className="text-sm font-black text-slate-800">Thông báo</p>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+          <p className="mt-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
             {unreadCount > 0 ? `${unreadCount} chưa đọc` : 'Không có thông báo mới'}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {onToggleMute && (
-            <label className="flex items-center gap-1 cursor-pointer select-none" title={isMuted ? 'Bật popup thông báo' : 'Tắt popup thông báo'}>
-              <input
-                type="checkbox"
-                checked={!isMuted}
-                onChange={onToggleMute}
-                className="rounded accent-emerald-600 w-3 h-3"
-              />
-              <span className={`text-[9px] font-black uppercase tracking-wider ${isMuted ? 'text-slate-400' : 'text-emerald-600'}`}>
+            <label className="flex cursor-pointer items-center gap-1 select-none" title={isMuted ? 'Bật popup thông báo' : 'Tắt popup thông báo'}>
+              <input type="checkbox" checked={!isMuted} onChange={onToggleMute} className="h-3 w-3 rounded accent-emerald-600" />
+              <span className={`text-[9px] font-black uppercase tracking-[0.12em] ${isMuted ? 'text-slate-400' : 'text-emerald-600'}`}>
                 {isMuted ? '🔕' : '🔔'}
               </span>
             </label>
           )}
           {unreadCount > 0 && (
-            <button
-              onClick={onMarkAllRead}
-              className="text-[10px] font-black text-emerald-600 uppercase tracking-wider hover:text-emerald-700"
-            >
+            <button onClick={onMarkAllRead} className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-600 hover:text-emerald-700">
               Đọc hết
             </button>
           )}
-          <button onClick={onClose} className="text-slate-300 hover:text-slate-500 text-lg">✕</button>
+          <button onClick={onClose} className="text-lg text-slate-300 transition hover:text-slate-500">✕</button>
         </div>
       </div>
 
-      {/* Notifications List */}
-      <div className="max-h-80 overflow-y-auto divide-y divide-slate-50">
+      <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
         {notifications.length === 0 ? (
           <div className="px-5 py-10 text-center">
-            <p className="text-3xl mb-2">🔔</p>
-            <p className="text-xs text-slate-400 font-bold">Chưa có thông báo nào</p>
+            <p className="mb-2 text-3xl">🔔</p>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Chưa có thông báo nào</p>
           </div>
         ) : (
           notifications.map(notif => (
             <button
               key={notif.id}
               onClick={() => onNotificationClick(notif)}
-              className={`w-full text-left px-5 py-3.5 transition-all hover:bg-slate-50 flex items-start gap-3 ${
-                !notif.read ? 'bg-emerald-50/50' : ''
-              }`}
+              className={`flex w-full items-start gap-3 px-5 py-3.5 text-left transition hover:bg-slate-50 ${!notif.read ? 'bg-emerald-50/60' : ''}`}
             >
-              <span className="text-xl shrink-0 mt-0.5">{getIcon(notif.type)}</span>
-              <div className="flex-1 min-w-0">
+              <span className="mt-0.5 shrink-0 text-xl">{getIcon(notif.type)}</span>
+              <div className="min-w-0 flex-1">
                 <p className={`text-xs leading-relaxed ${!notif.read ? 'font-black text-slate-800' : 'font-bold text-slate-600'}`}>
                   {notif.message}
                 </p>
-                <p className="text-[10px] text-slate-400 font-bold mt-1">{formatTime(notif.timestamp)}</p>
+                <p className="mt-1 text-[10px] font-bold text-slate-400">{formatTime(notif.timestamp)}</p>
               </div>
-              {!notif.read && (
-                <span className="w-2 h-2 bg-emerald-500 rounded-full shrink-0 mt-2" />
-              )}
+              {!notif.read && <span className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500" />}
             </button>
           ))
         )}

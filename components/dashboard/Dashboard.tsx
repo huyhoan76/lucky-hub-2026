@@ -84,23 +84,36 @@ const Dashboard: React.FC<DashboardProps> = memo(({ user, users, onAddMetric, re
 
   return (
     <div className="space-y-6 pb-12">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Trung tâm điều khiển</h2>
-          {(user as any).permissions?.includes('metrics:view:any') ? (
-            <div className="mt-2 flex items-center space-x-2">
-              <span className="text-sm text-slate-500 font-medium">Hội viên:</span>
-              <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)} className="bg-emerald-50 text-emerald-700 font-bold px-3 py-1.5 rounded-xl border-none text-sm outline-none ring-1 ring-emerald-100">
-                {users.map(u => <option key={(u as any).id || (u as any)._id} value={(u as any).id || (u as any)._id}>{u.fullName}</option>)}
-              </select>
+      <div className="rounded-[32px] border border-emerald-100 bg-gradient-to-r from-white via-emerald-50 to-teal-50 p-5 shadow-[0_20px_50px_rgba(16,185,129,0.08)] sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
+              <span>✨</span>
+              <span>Trung tâm sức khỏe</span>
             </div>
-          ) : (
-            <p className="text-slate-500 font-medium">Chào {user.fullName}! Mục tiêu: <span className="text-emerald-600 font-bold">{(user.healthGoals || []).join(', ') || 'Chưa đặt mục tiêu'}</span></p>
-          )}
+            <h2 className="text-2xl font-black tracking-tight text-slate-800 sm:text-[2rem]">Thống kê & mục tiêu</h2>
+            {(user as any).permissions?.includes('metrics:view:any') ? (
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <span className="text-sm font-semibold text-slate-500">Hội viên:</span>
+                <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)} className="w-full rounded-2xl border border-emerald-100 bg-white px-3 py-2 text-sm font-bold text-emerald-700 shadow-sm outline-none ring-0 transition focus:border-emerald-300 sm:w-auto">
+                  {users.map(u => <option key={(u as any).id || (u as any)._id} value={(u as any).id || (u as any)._id}>{u.fullName}</option>)}
+                </select>
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-slate-600 sm:text-base">Chào {user.fullName}! Mục tiêu của bạn: <span className="font-black text-emerald-600">{(user.healthGoals || []).join(', ') || 'Chưa đặt mục tiêu'}</span></p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 text-left shadow-sm">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Cập nhật gần nhất</div>
+              <div className="mt-1 text-sm font-black text-slate-800">{latestMetric ? new Date(latestMetric.date).toLocaleDateString('vi-VN') : 'Chưa có dữ liệu'}</div>
+            </div>
+            <LoadingButton onClick={() => onAddMetric(selectedUserId)} variant="primary" size="md" className="!shadow-lg !shadow-emerald-100">
+              + Cập nhật chỉ số
+            </LoadingButton>
+          </div>
         </div>
-        <LoadingButton onClick={() => onAddMetric(selectedUserId)} variant="primary" size="md" className="!shadow-lg !shadow-emerald-100">
-          + Cập nhật chỉ số
-        </LoadingButton>
       </div>
 
       <StatCards latestMetric={latestMetric} prevMetric={prevMetric} configs={AVAILABLE_METRICS} />
