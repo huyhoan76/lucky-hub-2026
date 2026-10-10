@@ -2,6 +2,9 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { Chat } from '../models/Chat.ts';
 import { Notification } from '../models/Notification.ts';
 import { logger } from '../../src/utils/logger.ts';
+import { ActiveSession } from '../models/ActiveSession.ts';
+import { User } from '../models/User.ts';
+import { getSessionIdFromCookie } from '../utils/sessionCookie.ts';
 
 // Maps
 export const userWsConnections = new Map<string, Set<WebSocket>>();
@@ -23,7 +26,7 @@ let wssRef: WebSocketServer | null = null;
 export function initChatWebSocket(wss: WebSocketServer) {
   wssRef = wss;
 
-  wss.on('connection', (ws: WebSocket, req) => {
+  wss.on('connection', async (ws: WebSocket, req) => {
     const ip = req.socket.remoteAddress || 'unknown';
     const url = new URL(req.url || '', `http://${req.headers.host}`);
     const pathname = url.pathname;
@@ -45,14 +48,38 @@ export function initChatWebSocket(wss: WebSocketServer) {
     }
 
     // ===== CHAT CONNECTION =====
-    const userId = url.searchParams.get('userId') || '';
-    const sessionId = url.searchParams.get('sessionId') || '';
-    const userRole = url.searchParams.get('role') || '';
-
-    if (!userId) {
-      ws.close(4001, 'Missing userId');
+    const sessionId = getSessionIdFromCookie(req);
+    if (!sessionId) {
+      ws.close(4001, 'Missing session');
       return;
     }
+
+    let session;
+    try {
+      session = await ActiveSession.findOne({ sessionId, isActive: true });
+    } catch (err: any) {
+      logger.error('WebSocket', `Session lookup failed: ${err.message}`);
+      ws.close(1011, 'Authentication failed');
+      return;
+    }
+    if (!session) {
+      ws.close(4001, 'Invalid session');
+      return;
+    }
+
+    let user;
+    try {
+      user = await User.findById(session.userId).select('status');
+    } catch (err: any) {
+      logger.error('WebSocket', `User lookup failed: ${err.message}`);
+      ws.close(1011, 'Authentication failed');
+      return;
+    }
+    if (!user || user.status !== 'ACTIVE') {
+      ws.close(4001, 'Invalid user session');
+      return;
+    }
+    const userId = String(session.userId);
 
     console.log(`[WebSocket] ✅ Chat client connected: userId=${userId}, ip=${ip}`);
 

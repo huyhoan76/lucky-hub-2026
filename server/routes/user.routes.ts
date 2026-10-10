@@ -48,7 +48,6 @@ router.get('/me', async (req: Request, res: Response) => {
       groupName: userGroup?.name || '',
       groupPermissions: req.user!.permissions,
       permissions: req.user!.permissions,
-      sessionId: req.headers.authorization?.substring(7) || '',
     });
   } catch (err: any) {
     res.status(500).json({ message: err.message });

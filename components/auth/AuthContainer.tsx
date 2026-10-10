@@ -176,13 +176,13 @@ const AuthContainer: React.FC<AuthContainerProps> = memo(({ onLogin, onRegister,
         </div>
 
         <div className="w-full max-w-md">
-          <a href="/" className="mb-6 block text-center no-underline lg:hidden">
+          <div className="mb-6 block text-center lg:hidden">
             <div className="flex items-center justify-center mb-4">
               <img src={branding.logoUrl || '/favicon/luckyhub.png'} alt="Lucky Hub" className="h-24 w-24 object-contain" />
             </div>
             <h1 className="text-3xl font-black text-slate-800">LUCKY HUB</h1>
             {branding.slogan && <p className="mt-2 text-xs font-bold uppercase tracking-wide text-emerald-700">{branding.slogan}</p>}
-          </a>
+          </div>
 
           <div className="rounded-[32px] border border-slate-200 bg-white/85 p-5 shadow-[0_30px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:p-7">
             {renderAuthForm()}

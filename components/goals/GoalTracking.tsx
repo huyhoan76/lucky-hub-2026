@@ -77,10 +77,6 @@ const GoalTracking: React.FC<GoalTrackingProps> = memo(({ currentUser, refreshTr
   // Helper lấy auth headers
   const getAuthHeaders = useCallback(() => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const sessionId = localStorage.getItem('lucky_hub_session');
-    if (sessionId) {
-      headers['Authorization'] = `Bearer ${sessionId}`;
-    }
     return headers;
   }, []);
 

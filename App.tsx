@@ -25,15 +25,15 @@ import { cacheManager } from './utils/cacheManager.ts';
 import wsService from './services/wsService.ts';
 import { DEFAULT_SYSTEM_BRANDING, SystemBranding } from './utils/systemBranding.ts';
 
-// Hằng số thời gian logout
-const LOGOUT_REMEMBER = 7 * 24 * 60 * 60 * 1000;  // 7 ngày nếu "Duy trì đăng nhập"
-const LOGOUT_NO_REMEMBER = 15 * 60 * 1000;        // 15 phút nếu không
+// Session không ghi nhớ hết hạn sau 15 phút không hoạt động.
+const SESSION_IDLE_TIMEOUT = 15 * 60 * 1000;
 
 // Key lưu trong localStorage
 const LS_USER = 'lucky_hub_user';
-const LS_SESSION = 'lucky_hub_session';
+const LEGACY_LS_SESSION = 'lucky_hub_session';
 const LS_REMEMBER = 'lucky_hub_remember';
 const LS_LOGIN_TIME = 'lucky_hub_login_time';
+const LS_AUTH_EVENT = 'lucky_hub_auth_event';
 
 // Session ping interval: 30 giây
 const SESSION_PING_INTERVAL = 30000;
@@ -44,6 +44,7 @@ const App: React.FC = () => {
   const expireTimerRef = useRef<number | null>(null);
   const loginTimestampRef = useRef<number | null>(null);
   const rememberMeRef = useRef<boolean>(false);
+  const logoutRequestRef = useRef<Promise<void> | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isRegistering, setIsRegistering] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
@@ -63,7 +64,7 @@ const App: React.FC = () => {
   const [newEarnedBadge, setNewEarnedBadge] = useState<Badge | null>(null);
   const [viewingPostId, setViewingPostId] = useState<string | null>(null);
   const pingIntervalRef = useRef<number | null>(null);
-  const sessionIdRef = useRef<string | null>(null);
+  const activityPingTimeRef = useRef<number>(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -99,12 +100,29 @@ const App: React.FC = () => {
     if (favicon) favicon.href = systemBranding.logoUrl || '/favicon/luckyhub.png';
   }, [systemBranding.logoUrl]);
 
-  const handleLogout = useCallback((reason?: string) => {
+  const handleLogout = useCallback((reason?: string, preserveStoredLogin = false, revokeServerSession = true) => {
+    if (revokeServerSession) {
+      const logoutRequest = fetch('/api/logout', {
+        method: 'POST',
+        credentials: 'same-origin',
+      }).then((response) => {
+        if (!response.ok) throw new Error(`Logout request failed: ${response.status}`);
+      }).catch((error) => {
+        console.error('[Auth] Server logout failed:', error);
+      });
+      logoutRequestRef.current = logoutRequest;
+    }
+
     setCurrentUser(null);
-    localStorage.removeItem(LS_USER);
-    localStorage.removeItem(LS_SESSION);
-    localStorage.removeItem(LS_REMEMBER);
-    localStorage.removeItem(LS_LOGIN_TIME);
+    localStorage.removeItem(LEGACY_LS_SESSION);
+    if (!preserveStoredLogin) {
+      localStorage.removeItem(LS_USER);
+      localStorage.removeItem(LS_REMEMBER);
+      localStorage.removeItem(LS_LOGIN_TIME);
+      if (reason !== 'session_invalidated' && reason !== 'session_expired') {
+        localStorage.setItem(LS_AUTH_EVENT, JSON.stringify({ type: 'logout', at: Date.now() }));
+      }
+    }
     setActiveTab('dashboard');
     setIsChatOpen(false);
     setIsLogOpen(false);
@@ -116,7 +134,6 @@ const App: React.FC = () => {
       clearInterval(pingIntervalRef.current);
       pingIntervalRef.current = null;
     }
-    sessionIdRef.current = null;
     if (window.debugLog) window.debugLog(`Người dùng đã đăng xuất${reason ? ': ' + reason : ''}`, "auth");
     
     // Nếu bị đá do đăng nhập từ thiết bị khác, hiển thị cảnh báo đặc biệt
@@ -129,102 +146,94 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Kiểm tra session hết hạn khi mount + refresh permissions từ server
+  // Restore the saved profile only after confirming the browser cookie is valid.
   useEffect(() => {
     Database.checkHealth();
     const savedUser = localStorage.getItem(LS_USER);
-    const savedSession = localStorage.getItem(LS_SESSION);
     const savedRemember = localStorage.getItem(LS_REMEMBER) === 'true';
     const savedLoginTime = parseInt(localStorage.getItem(LS_LOGIN_TIME) || '0', 10);
-    
-    if (savedSession) {
-      sessionIdRef.current = savedSession;
-    }
-    
-    if (savedUser && savedLoginTime > 0) {
-      const now = Date.now();
-      const maxAge = savedRemember ? LOGOUT_REMEMBER : LOGOUT_NO_REMEMBER;
-      const elapsed = now - savedLoginTime;
-      
-      if (elapsed >= maxAge) {
-        // Session đã hết hạn
-        console.log('[App] Session expired on load, logging out');
-        localStorage.removeItem(LS_USER);
-        localStorage.removeItem(LS_REMEMBER);
-        localStorage.removeItem(LS_LOGIN_TIME);
-        if (window.debugLog) window.debugLog(`Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.`, "auth");
-      } else {
-        try {
-          setCurrentUser(JSON.parse(savedUser));
-          loginTimestampRef.current = savedLoginTime;
-          rememberMeRef.current = savedRemember;
-          
-          // Refresh permissions từ server (lấy permissions mới nhất từ Groups)
-          (async () => {
-            try {
-              const resp = await fetch('/api/users/me', {
-                headers: { 'Authorization': `Bearer ${savedSession}` }
-              });
-              if (resp.ok) {
-                const serverUser = await resp.json();
-                // Cập nhật currentUser với permissions mới từ server
-                setCurrentUser(serverUser);
-                localStorage.setItem(LS_USER, JSON.stringify(serverUser));
-                console.log(`[App] ✅ Permissions refreshed: ${serverUser.permissions?.length || 0} permissions`);
-                if (window.debugLog) window.debugLog(`Permissions refreshed: ${serverUser.permissions?.length || 0} permissions`, "auth");
-              } else {
-                console.warn('[App] Failed to refresh permissions, using cached');
-              }
-            } catch (refreshErr) {
-              console.warn('[App] Network error refreshing permissions, using cached:', refreshErr);
-            }
-          })();
 
-          // Thiết lập timer logout tự động
-          const remaining = maxAge - elapsed;
-          if (expireTimerRef.current) clearTimeout(expireTimerRef.current);
-          expireTimerRef.current = window.setTimeout(() => {
-            handleLogout();
-            alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
-            if (window.debugLog) window.debugLog(`Phiên đăng nhập tự động hết hạn sau ${savedRemember ? '7 ngày' : '15 phút'}`, "auth");
-          }, remaining);
-        } catch (e) {
-          localStorage.removeItem(LS_USER);
-          localStorage.removeItem(LS_REMEMBER);
-          localStorage.removeItem(LS_LOGIN_TIME);
-        }
-      }
+    if (!savedUser) return;
+    if (!savedRemember && savedLoginTime > 0 && Date.now() - savedLoginTime >= SESSION_IDLE_TIMEOUT) {
+      console.log('[App] Session expired after inactivity');
+      handleLogout('session_expired');
+      return;
     }
+
+    let cachedUser: User;
+    try {
+      cachedUser = JSON.parse(savedUser);
+    } catch (error) {
+      console.error('[Auth] Saved user data is invalid:', error);
+      handleLogout('invalid_saved_user');
+      return;
+    }
+
+    rememberMeRef.current = savedRemember;
+    loginTimestampRef.current = savedLoginTime || Date.now();
+
+    (async () => {
+      try {
+        const legacySession = localStorage.getItem(LEGACY_LS_SESSION);
+        if (legacySession) {
+          const migrationResponse = await fetch('/api/session/migrate', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${legacySession}`,
+            },
+            body: JSON.stringify({ rememberMe: savedRemember }),
+          });
+          if (!migrationResponse.ok) {
+            handleLogout('session_invalidated');
+            return;
+          }
+          localStorage.removeItem(LEGACY_LS_SESSION);
+        }
+
+        const response = await fetch('/api/users/me', { credentials: 'same-origin' });
+        if (response.status === 401 || response.status === 403) {
+          handleLogout('session_invalidated');
+          return;
+        }
+        if (!response.ok) throw new Error(`Could not validate saved session: ${response.status}`);
+
+        const serverUser = await response.json();
+        setCurrentUser(serverUser);
+        localStorage.setItem(LS_USER, JSON.stringify(serverUser));
+        console.log(`[App] Permissions refreshed: ${serverUser.permissions?.length || 0} permissions`);
+        if (window.debugLog) window.debugLog(`Permissions refreshed: ${serverUser.permissions?.length || 0} permissions`, 'auth');
+      } catch (error) {
+        console.warn('[App] Could not validate saved login; using cached profile:', error);
+        setCurrentUser(cachedUser);
+      }
+    })();
   }, [handleLogout]);
 
-  // Session Ping: kiểm tra session còn hiệu lực mỗi 30s
+  // Periodically check whether the server invalidated this browser session.
   useEffect(() => {
-    if (!currentUser || !sessionIdRef.current) return;
+    if (!currentUser) return;
 
     const pingSession = async () => {
       try {
-        // QUAN TRỌNG: Luôn dùng sessionId từ ref, KHÔNG đọc từ localStorage
-        // để tránh bị ghi đè khi tab khác login cùng trình duyệt
-        const mySessionId = sessionIdRef.current;
-        if (!mySessionId) return;
-        
-        const resp = await fetch('/api/session/ping', {
+        const response = await fetch('/api/session/ping', {
           method: 'POST',
+          credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: mySessionId })
+          body: JSON.stringify({ activity: false }),
         });
-        const data = await resp.json();
-        if (!data.valid && data.reason === 'session_invalidated') {
-          handleLogout('session_invalidated');
+        const data = await response.json();
+        if (response.status === 401 || response.status === 403) {
+          handleLogout(data.reason === 'session_invalidated' ? data.reason : 'session_expired');
         }
-      } catch {
-        // Bỏ qua lỗi mạng, không ảnh hưởng
+      } catch (error) {
+        console.warn('[Session] Could not verify active session:', error);
       }
     };
 
-    pingSession(); // Ping ngay khi mount
+    void pingSession();
     pingIntervalRef.current = window.setInterval(pingSession, SESSION_PING_INTERVAL);
-
     return () => {
       if (pingIntervalRef.current) {
         clearInterval(pingIntervalRef.current);
@@ -235,10 +244,10 @@ const App: React.FC = () => {
 
   // Kết nối WebSocket khi user đăng nhập
   useEffect(() => {
-    if (currentUser && sessionIdRef.current) {
+    if (currentUser) {
       const uid = (currentUser as any).id || (currentUser as any)._id;
       
-      wsService.connect(uid, sessionIdRef.current, (currentUser as any).groupName || '');
+      wsService.connect(uid);
       
       console.log(`[App] WebSocket connected for user ${uid}`);
 
@@ -313,26 +322,37 @@ const App: React.FC = () => {
     const handleSessionInvalidated = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       console.log(`[Session] Invalidated event received:`, detail);
-      handleLogout('session_invalidated');
+      handleLogout(detail.reason === 'session_invalidated' ? detail.reason : 'session_expired');
     };
     
     window.addEventListener('session:invalidated', handleSessionInvalidated);
     return () => window.removeEventListener('session:invalidated', handleSessionInvalidated);
   }, [handleLogout]);
 
-  // Phát hiện khi tab khác trong cùng trình duyệt login và ghi đè session
+  // Sync login/logout changes between tabs without exposing the session cookie.
   useEffect(() => {
     if (!currentUser) return;
 
-    const handleStorageChange = (e: StorageEvent) => {
-      // Chỉ xử lý khi key LS_SESSION thay đổi
-      if (e.key === LS_SESSION && e.newValue && e.newValue !== e.oldValue) {
-        const mySessionId = sessionIdRef.current;
-        // Nếu session trong localStorage khác với session của tab này
-        // => tab khác đã login và ghi đè
-        if (mySessionId && e.newValue !== mySessionId) {
-          console.log(`[Session] Detected other tab login: storage session=${e.newValue.substring(0, 8)}..., my session=${mySessionId.substring(0, 8)}...`);
-          handleLogout('session_invalidated');
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === LS_AUTH_EVENT && event.newValue) {
+        try {
+          const authEvent = JSON.parse(event.newValue);
+          if (authEvent.type === 'logout') handleLogout('signed_out_in_other_tab', true, false);
+        } catch (error) {
+          console.error('[Auth] Could not read cross-tab auth event:', error);
+        }
+      }
+
+      if (event.key === LS_USER && event.newValue) {
+        try {
+          const updatedUser = JSON.parse(event.newValue);
+          const currentUserId = String((currentUser as any).id || (currentUser as any)._id);
+          const updatedUserId = String(updatedUser.id || updatedUser._id);
+          if (updatedUserId && updatedUserId !== currentUserId) {
+            handleLogout('account_changed_in_other_tab', true, false);
+          }
+        } catch (error) {
+          console.error('[Auth] Could not compare cross-tab user state:', error);
         }
       }
     };
@@ -341,39 +361,58 @@ const App: React.FC = () => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [currentUser, handleLogout]);
 
-  // Cơ chế refresh session: reset timer khi có tương tác người dùng
+  // Renew sessions on user activity; non-remembered sessions expire after 15 idle minutes.
   useEffect(() => {
     if (!currentUser) return;
-    
+
     const refreshSession = () => {
-      // Chỉ refresh khi ghi nhớ đăng nhập (session kéo dài)
-      if (rememberMeRef.current) {
-        const now = Date.now();
-        loginTimestampRef.current = now;
-        localStorage.setItem(LS_LOGIN_TIME, now.toString());
+      const now = Date.now();
+      const lastActivity = loginTimestampRef.current || now;
+      if (!rememberMeRef.current && now - lastActivity >= SESSION_IDLE_TIMEOUT) {
+        handleLogout('session_expired');
+        alert('Phiên đăng nhập đã hết hạn do không hoạt động. Vui lòng đăng nhập lại.');
+        return;
       }
-      
-      // Reset timer logout
-      if (expireTimerRef.current) {
-        clearTimeout(expireTimerRef.current);
+
+      loginTimestampRef.current = now;
+      localStorage.setItem(LS_LOGIN_TIME, now.toString());
+      if (expireTimerRef.current) clearTimeout(expireTimerRef.current);
+
+      if (!rememberMeRef.current) {
+        expireTimerRef.current = window.setTimeout(() => {
+          if (Date.now() - (loginTimestampRef.current || 0) >= SESSION_IDLE_TIMEOUT) {
+            handleLogout('session_expired');
+            alert('Phiên đăng nhập đã hết hạn do không hoạt động. Vui lòng đăng nhập lại.');
+          }
+        }, SESSION_IDLE_TIMEOUT);
       }
-      const maxAge = rememberMeRef.current ? LOGOUT_REMEMBER : LOGOUT_NO_REMEMBER;
-      const elapsed = Date.now() - (loginTimestampRef.current || Date.now());
-      const remaining = Math.max(0, maxAge - elapsed);
-      
-      expireTimerRef.current = window.setTimeout(() => {
-        handleLogout();
-        if (window.debugLog) window.debugLog(`Phiên đăng nhập tự động hết hạn`, "auth");
-      }, remaining);
+
+      if (now - activityPingTimeRef.current >= 15000) {
+        activityPingTimeRef.current = now;
+        void fetch('/api/session/ping', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ activity: true }),
+        }).then(async (response) => {
+          const data = await response.json();
+          if (response.status === 401 || response.status === 403) {
+            handleLogout(data.reason === 'session_invalidated' ? data.reason : 'session_expired');
+          } else if (!response.ok) {
+            console.error('[Session] Activity renewal failed:', data.message || response.statusText);
+          }
+        }).catch((error) => {
+          console.error('[Session] Activity renewal request failed:', error);
+        });
+      }
     };
-    
-    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
-    const handleActivity = () => refreshSession();
-    events.forEach(event => window.addEventListener(event, handleActivity));
+
+    const events = ['pointerdown', 'mousedown', 'mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+    events.forEach((event) => window.addEventListener(event, refreshSession, { passive: true }));
     refreshSession();
-    
+
     return () => {
-      events.forEach(event => window.removeEventListener(event, handleActivity));
+      events.forEach((event) => window.removeEventListener(event, refreshSession));
       if (expireTimerRef.current) {
         clearTimeout(expireTimerRef.current);
         expireTimerRef.current = null;
@@ -453,10 +492,16 @@ const App: React.FC = () => {
     setLockUntil(null);
     setIsLoading(true);
     try {
+      if (logoutRequestRef.current) await logoutRequestRef.current;
       const response = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: data.username.toLowerCase().trim(), password: data.password })
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          username: data.username.toLowerCase().trim(),
+          password: data.password,
+          rememberMe: !!data.rememberMe,
+        })
       });
       const result = await response.json();
       if (response.ok) {
@@ -468,15 +513,14 @@ const App: React.FC = () => {
         const loginTime = Date.now();
         rememberMeRef.current = rememberMe;
         loginTimestampRef.current = loginTime;
-        sessionIdRef.current = result.sessionId || null;
+        activityPingTimeRef.current = loginTime;
         
         localStorage.setItem(LS_USER, JSON.stringify(result));
-        localStorage.setItem(LS_SESSION, result.sessionId || '');
         localStorage.setItem(LS_REMEMBER, rememberMe ? 'true' : 'false');
         localStorage.setItem(LS_LOGIN_TIME, loginTime.toString());
         
-        console.log(`[Login] Success, rememberMe=${rememberMe}, will auto-logout in ${rememberMe ? '7 days' : '15 minutes'}`);
-        if (window.debugLog) window.debugLog(`Đăng nhập thành công: @${result.username}${rememberMe ? ' (ghi nhớ 7 ngày)' : ' (15 phút)'}`, "auth");
+        console.log(`[Login] Success, rememberMe=${rememberMe}`);
+        if (window.debugLog) window.debugLog(`Đăng nhập thành công: @${result.username}${rememberMe ? ' (ghi nhớ 31 ngày, gia hạn khi sử dụng)' : ' (hết hạn sau 15 phút không hoạt động)'}`, "auth");
         
         // Gợi ý trình duyệt lưu mật khẩu - dùng Credential Management API
         try {

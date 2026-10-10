@@ -149,10 +149,8 @@ const ChatProvider: React.FC<ChatProviderProps> = memo(({
         // Gọi API lấy danh sách contacts được phép chat (dựa trên backend permissions)
         let contacts: any[] = [];
         try {
-          const sessionId = localStorage.getItem('lucky_hub_session');
           const res = await fetch('/api/chats/contacts', {
             headers: {
-              'Authorization': `Bearer ${sessionId}`,
               'Content-Type': 'application/json',
             },
           });

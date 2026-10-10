@@ -107,10 +107,8 @@ const SystemSettings: React.FC<SystemSettingsProps> = function SystemSettings({ 
   });
 
   const getAuthHeaders = useCallback(() => {
-    const sessionId = localStorage.getItem('lucky_hub_session');
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${sessionId}`,
     };
   }, []);
 

@@ -6,6 +6,7 @@ const ActiveSessionSchema = new mongoose.Schema({
   device: { type: String, default: 'unknown' },
   ip: { type: String, default: '' },
   isActive: { type: Boolean, default: true },
+  rememberMe: { type: Boolean, default: false },
   lastPing: { type: Date, default: null },
 }, { timestamps: true });
 

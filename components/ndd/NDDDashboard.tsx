@@ -32,9 +32,7 @@ const NDDDashboard: React.FC<NDDDashboardProps> = memo(({ currentUser }) => {
 
   const fetchCoachCandidates = useCallback(async () => {
     try {
-      const resp = await fetch('/api/users/coach-candidates', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('lucky_hub_session')}` }
-      });
+      const resp = await fetch('/api/users/coach-candidates');
       if (resp.ok) {
         const data = await resp.json();
         setCoachCandidates(data || []);
@@ -46,11 +44,8 @@ const NDDDashboard: React.FC<NDDDashboardProps> = memo(({ currentUser }) => {
 
   const fetchDashboard = useCallback(async () => {
     setIsLoading(true);
-    const sessionToken = localStorage.getItem('lucky_hub_session');
     try {
-      const resp = await fetch('/api/nutrition-groups/my-dashboard', {
-        headers: { 'Authorization': `Bearer ${sessionToken}` }
-      });
+      const resp = await fetch('/api/nutrition-groups/my-dashboard');
       const data = await resp.json();
       const newData = data.groups || [];
       setDashboardData(newData);
@@ -66,11 +61,8 @@ const NDDDashboard: React.FC<NDDDashboardProps> = memo(({ currentUser }) => {
   }, []);
 
   const refreshDashboard = useCallback(async () => {
-    const sessionToken = localStorage.getItem('lucky_hub_session');
     try {
-      const resp = await fetch('/api/nutrition-groups/my-dashboard', {
-        headers: { 'Authorization': `Bearer ${sessionToken}` }
-      });
+      const resp = await fetch('/api/nutrition-groups/my-dashboard');
       const data = await resp.json();
       const newData = data.groups || [];
       setDashboardData(newData);
@@ -91,7 +83,7 @@ const NDDDashboard: React.FC<NDDDashboardProps> = memo(({ currentUser }) => {
     try {
       const resp = await fetch(`/api/nutrition-groups/${selectedNdd.group.id}/co-owners`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('lucky_hub_session')}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ coOwnerIds: selectedCoOwnerIds }),
       });
       if (resp.ok) {
@@ -165,7 +157,7 @@ const NDDDashboard: React.FC<NDDDashboardProps> = memo(({ currentUser }) => {
     try {
       await fetch('/api/chats/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('lucky_hub_session')}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ receiverId: chatBox.userId, content: chatMessage.trim() }),
       });
       setActionMsg({ type: 'success', text: `✅ Đã gửi tin nhắn đến ${chatBox.userName}` });

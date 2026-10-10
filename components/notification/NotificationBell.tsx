@@ -43,10 +43,7 @@ const NotificationBell: React.FC<NotificationBellProps> = memo(({ currentUser, o
     if (!currentUserId) return;
     setIsLoading(true);
     try {
-      const sessionId = localStorage.getItem('lucky_hub_session');
-      const resp = await fetch(`/api/notifications/${currentUserId}`, {
-        headers: sessionId ? { 'Authorization': `Bearer ${sessionId}` } : {}
-      });
+      const resp = await fetch(`/api/notifications/${currentUserId}`);
       if (resp.ok) {
         const data: NotificationItem[] = await resp.json();
         setNotifications(prev => {
@@ -128,10 +125,8 @@ const NotificationBell: React.FC<NotificationBellProps> = memo(({ currentUser, o
   // Mark all as read qua API
   const handleMarkAllRead = useCallback(async () => {
     try {
-      const sessionId = localStorage.getItem('lucky_hub_session');
       const resp = await fetch(`/api/notifications/read-all/${currentUserId}`, { 
         method: 'PUT',
-        headers: sessionId ? { 'Authorization': `Bearer ${sessionId}` } : {}
       });
       if (resp.ok) {
         setNotifications(prev => prev.map(n => ({ ...n, read: true })));
@@ -149,10 +144,8 @@ const NotificationBell: React.FC<NotificationBellProps> = memo(({ currentUser, o
 
     // Gọi API mark read TRƯỚC - await để đảm bảo thành công
     try {
-      const sessionId = localStorage.getItem('lucky_hub_session');
       const resp = await fetch(`/api/notifications/${notif.id}/read`, { 
         method: 'PUT',
-        headers: sessionId ? { 'Authorization': `Bearer ${sessionId}` } : {}
       });
       if (resp.ok) {
         setNotifications(prev => prev.map(n =>

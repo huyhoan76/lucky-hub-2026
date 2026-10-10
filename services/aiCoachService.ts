@@ -59,11 +59,7 @@ const processYearLogic = (extractedDate: string) => {
 };
 
 const getAuthHeaders = () => {
-  const sessionId = localStorage.getItem('lucky_hub_session');
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (sessionId) {
-    headers['Authorization'] = `Bearer ${sessionId}`;
-  }
   return headers;
 };
 
@@ -74,9 +70,6 @@ export const extractMetricsFromImage = async (base64Image: string, selectedYear?
   };
 
   log("Bắt đầu trích xuất chỉ số...");
-  
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), 30000);
 
   try {
     const res = await fetch('/api/ai/extract', {
@@ -85,21 +78,21 @@ export const extractMetricsFromImage = async (base64Image: string, selectedYear?
       body: JSON.stringify({ 
         imageBase64: base64Image,
         selectedYear: selectedYear && selectedYear !== 'auto' ? selectedYear : new Date().getFullYear().toString()
-      }),
-      signal: controller.signal
+      })
     });
 
     const duration = Date.now() - startTime;
-    clearTimeout(id);
 
     if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        log(`Lỗi Server: ${errData.message}`, "error", duration);
-        return null;
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.message || `Server trả về lỗi ${res.status}`);
     }
     
     const result = await res.json();
-    if (!result.weight || result.weight <= 0) {
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+      throw new Error('AI trả về dữ liệu không đúng định dạng.');
+    }
+    if (!Number.isFinite(Number(result.weight)) || Number(result.weight) <= 0) {
       log("Không nhận diện được số liệu.", "error", duration);
       return null;
     }
@@ -109,9 +102,8 @@ export const extractMetricsFromImage = async (base64Image: string, selectedYear?
     return result;
   } catch (e: any) {
     const duration = Date.now() - startTime;
-    clearTimeout(id);
     log(`LỖI: ${e.message}`, "error", duration);
-    return null;
+    throw e;
   }
 };
 

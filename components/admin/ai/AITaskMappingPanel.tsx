@@ -101,6 +101,9 @@ const AITaskMappingPanel: React.FC = memo(() => {
   const [taskConfigs, setTaskConfigs] = useState<TaskConfig[]>([]);
   const [providers, setProviders] = useState<AIProvider[]>([]);
   const [availableModels, setAvailableModels] = useState<Record<AITaskType, AvailableModel[]>>({} as any);
+  const [taskProviderModels, setTaskProviderModels] = useState<Record<string, AIModel[]>>({});
+  const [loadingTaskModels, setLoadingTaskModels] = useState<Record<string, boolean>>({});
+  const [taskModelFilters, setTaskModelFilters] = useState<Record<string, string>>({});
   const [activeTask, setActiveTask] = useState<AITaskType>('chat');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -160,13 +163,14 @@ const AITaskMappingPanel: React.FC = memo(() => {
   };
 
   const getModelInfo = (taskType: AITaskType, providerId: string, modelId: string) => {
+    const provider = providers.find(p => p._id === providerId);
+    const cachedModel = taskProviderModels[`${taskType}:${providerId}`]?.find(m => m.modelId === modelId);
+    if (cachedModel) return cachedModel;
+
     const avail = availableModels[taskType];
     if (!avail) return null;
-    for (const a of avail) {
-      const m = a.models.find(m => m.modelId === modelId);
-      if (m) return { ...m, providerName: a.provider };
-    }
-    return null;
+    const providerLabel = provider ? `${provider.name} (${provider.providerId})` : '';
+    return avail.find(a => a.provider === providerLabel)?.models.find(m => m.modelId === modelId) || null;
   };
 
   const handleProviderReorder = (taskType: AITaskType, fromIndex: number, toIndex: number) => {
@@ -206,6 +210,13 @@ const AITaskMappingPanel: React.FC = memo(() => {
     const config = getConfig(taskType);
     if (!config) return;
     if (config.providerPriority.some(p => p.providerId === providerId)) return;
+
+    try {
+      await loadTaskProviderModels(providerId, taskType, true);
+    } catch (err: any) {
+      setError(err.message || 'Không tải được danh sách model của provider');
+      return;
+    }
 
     await updateConfig(taskType, {
       providerPriority: [...config.providerPriority, { providerId, enabled: true, strategy: 'fallback', weight: 1 }],
@@ -293,8 +304,63 @@ const AITaskMappingPanel: React.FC = memo(() => {
   // Test section handlers
   const testAuthHeaders = () => ({
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${localStorage.getItem('lucky_hub_session')}`,
   });
+
+  const loadTaskProviderModels = useCallback(async (
+    providerId: string,
+    taskType: AITaskType,
+    discoverIfEmpty = false
+  ): Promise<AIModel[]> => {
+    const cacheKey = `${taskType}:${providerId}`;
+    setLoadingTaskModels(prev => ({ ...prev, [cacheKey]: true }));
+
+    try {
+      const fetchCachedModels = async (): Promise<AIModel[]> => {
+        const response = await fetch(
+          `/api/admin/ai/providers/${providerId}/models?taskType=${encodeURIComponent(taskType)}`,
+          { headers: testAuthHeaders() }
+        );
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || `Không tải được danh sách model (${response.status})`);
+        }
+        return Array.isArray(data.models) ? data.models : [];
+      };
+
+      let models = await fetchCachedModels();
+      if (models.length === 0 && discoverIfEmpty) {
+        const response = await fetch(`/api/admin/ai/providers/${providerId}/discover`, {
+          method: 'POST',
+          headers: testAuthHeaders(),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || data.error || `Không cập nhật được model (${response.status})`);
+        }
+        if (data.error) throw new Error(data.error);
+        models = await fetchCachedModels();
+      }
+
+      setTaskProviderModels(prev => ({ ...prev, [cacheKey]: models }));
+      return models;
+    } finally {
+      setLoadingTaskModels(prev => ({ ...prev, [cacheKey]: false }));
+    }
+  }, []);
+
+  useEffect(() => {
+    const config = taskConfigs.find(c => c.taskType === activeTask);
+    const providersToLoad = config?.providerPriority || [];
+    providersToLoad.forEach(({ providerId }) => {
+      const cacheKey = `${activeTask}:${providerId}`;
+      if (taskProviderModels[cacheKey] !== undefined || loadingTaskModels[cacheKey]) return;
+      loadTaskProviderModels(providerId, activeTask).catch((err: any) => {
+        console.error('[AITaskMapping] Load task models failed:', err);
+        setError(err.message || 'Không tải được danh sách model của task');
+        setTaskProviderModels(prev => ({ ...prev, [cacheKey]: [] }));
+      });
+    });
+  }, [activeTask, taskConfigs, taskProviderModels, loadingTaskModels, loadTaskProviderModels]);
 
   /**
    * Nạp danh sách model đã phát hiện của provider (đọc từ cache trong DB) để admin
@@ -431,7 +497,6 @@ const AITaskMappingPanel: React.FC = memo(() => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('lucky_hub_session')}`
         },
         body: JSON.stringify({
           taskType: activeTask,
@@ -489,7 +554,6 @@ const AITaskMappingPanel: React.FC = memo(() => {
   }
 
   const config = getConfig(activeTask);
-  const taskAvailModels = availableModels[activeTask] || [];
 
   return (
     <div className="space-y-6 pb-10">
@@ -593,6 +657,15 @@ const AITaskMappingPanel: React.FC = memo(() => {
                   const provider = providers.find(p => p._id === pp.providerId);
                   if (!provider) return null;
                   const providerModels = config.modelPriority.filter(m => m.providerId === pp.providerId);
+                  const providerModelCacheKey = `${activeTask}:${pp.providerId}`;
+                  const providerAvailableModels = taskProviderModels[providerModelCacheKey] || [];
+                  const modelsToAdd = providerAvailableModels.filter(
+                    model => !config.modelPriority.some(pm => pm.providerId === pp.providerId && pm.modelId === model.modelId)
+                  );
+                  const modelSearch = (taskModelFilters[providerModelCacheKey] || '').trim().toLowerCase();
+                  const filteredTaskModels = modelsToAdd.filter(model =>
+                    `${model.displayName || ''} ${model.modelId}`.toLowerCase().includes(modelSearch)
+                  );
 
                   return (
                     <div key={pp.providerId} className="p-4 hover:bg-slate-50/50 transition">
@@ -656,8 +729,7 @@ const AITaskMappingPanel: React.FC = memo(() => {
                       </div>
 
                       {/* Models for this provider */}
-                      {providerModels.length > 0 && (
-                        <div className="ml-6 sm:ml-12 pt-3 border-l-2 border-slate-100 space-y-2">
+                      <div className="ml-6 sm:ml-12 pt-3 border-l-2 border-slate-100 space-y-2">
                           {providerModels.map((pm, mIdx) => {
                             const modelInfo = getModelInfo(activeTask, pp.providerId, pm.modelId);
                             return (
@@ -713,24 +785,57 @@ const AITaskMappingPanel: React.FC = memo(() => {
                               </div>
                             );
                           })}
-                          {/* Add model button */}
                           <div className="pt-2">
-                            {taskAvailModels.flatMap(a =>
-                              a.models
-                                .filter(m => !config.modelPriority.some(pm => pm.providerId === pp.providerId && pm.modelId === m.modelId))
-                                .map(m => (
-                                  <button
-                                    key={m.modelId}
-                                    onClick={() => handleAddModel(activeTask, pp.providerId, m.modelId)}
-                                    className="mr-2 mb-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-100 hover:bg-emerald-100"
-                                  >
-                                    ➕ {m.displayName}
-                                  </button>
-                                ))
+                            <div className="flex items-center justify-between gap-3 mb-2">
+                              <span className="text-xs font-bold text-slate-500">Model có thể chọn cho task này</span>
+                              <button
+                                onClick={() => loadTaskProviderModels(pp.providerId, activeTask, true).catch((err: any) => {
+                                  console.error('[AITaskMapping] Refresh task models failed:', err);
+                                  setError(err.message || 'Không cập nhật được danh sách model');
+                                })}
+                                disabled={loadingTaskModels[providerModelCacheKey]}
+                                className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-200 disabled:opacity-50"
+                              >
+                                {loadingTaskModels[providerModelCacheKey] ? '⏳ Đang tải...' : '🔄 Tải/cập nhật model'}
+                              </button>
+                            </div>
+                            {modelsToAdd.length > 0 && (
+                              <input
+                                type="search"
+                                value={taskModelFilters[providerModelCacheKey] || ''}
+                                onChange={e => setTaskModelFilters(prev => ({
+                                  ...prev,
+                                  [providerModelCacheKey]: e.target.value,
+                                }))}
+                                placeholder="Tìm theo tên hoặc mã model..."
+                                aria-label={`Tìm model cho ${provider.name} trong task ${TASK_LABELS[activeTask]}`}
+                                className="w-full mb-3 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                              />
+                            )}
+                            {filteredTaskModels.map(model => (
+                              <button
+                                key={model.modelId}
+                                onClick={() => handleAddModel(activeTask, pp.providerId, model.modelId)}
+                                className="mr-2 mb-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-100 hover:bg-emerald-100"
+                              >
+                                ➕ {model.isFreeTier ? '🆓 ' : ''}{model.displayName || model.modelId}
+                                {model.capabilities?.vision ? ' 👁️' : ''}
+                              </button>
+                            ))}
+                            {!loadingTaskModels[providerModelCacheKey] && modelsToAdd.length > 0 && filteredTaskModels.length === 0 && (
+                              <p className="text-xs text-slate-400">
+                                Không tìm thấy model khớp “{taskModelFilters[providerModelCacheKey]}”.
+                              </p>
+                            )}
+                            {!loadingTaskModels[providerModelCacheKey] && modelsToAdd.length === 0 && (
+                              <p className="text-xs text-slate-400">
+                                {providerAvailableModels.length > 0
+                                  ? 'Provider này không còn model nào chưa được thêm cho task.'
+                                  : 'Chưa có model trong cache. Bấm “Tải/cập nhật model” để lấy model từ provider.'}
+                              </p>
                             )}
                           </div>
-                        </div>
-                      )}
+                      </div>
                     </div>
                   );
                 })}

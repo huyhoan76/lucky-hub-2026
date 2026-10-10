@@ -95,6 +95,7 @@ router.use(optionalAuth);
 // POST /api/ai/extract - Trích xuất chỉ số từ ảnh
 router.post('/extract', async (req: Request, res: Response) => {
   const requestId = Math.random().toString(36).substring(7).toUpperCase();
+  const startedAt = Date.now();
   try {
     const { imageBase64, selectedYear } = req.body;
     if (!imageBase64) return res.status(400).json({ message: "Thiếu dữ liệu ảnh" });
@@ -134,8 +135,14 @@ YÊU CẦU ĐỊNH DẠNG: Trả về JSON object với các trường là số 
       }
     };
     const response = await callAI(requestId, 'vision', payload, { userId, modelName: 'auto' });
-    res.json(JSON.parse(sanitizeJSON(response.text)));
+    const result = JSON.parse(sanitizeJSON(response.text));
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+      throw new Error('AI trả về dữ liệu chỉ số không đúng định dạng.');
+    }
+    console.log(`[VisionExtract] Request ${requestId}: Completed in ${Date.now() - startedAt}ms`);
+    res.json(result);
   } catch (err: any) {
+    console.error(`[VisionExtract] Request ${requestId}: Failed after ${Date.now() - startedAt}ms:`, err.message);
     res.status(500).json({ message: err.message });
   }
 });
@@ -143,6 +150,7 @@ YÊU CẦU ĐỊNH DẠNG: Trả về JSON object với các trường là số 
 // POST /api/ai/bulk-extract
 router.post('/bulk-extract', async (req: Request, res: Response) => {
   const requestId = Math.random().toString(36).substring(7).toUpperCase();
+  const startedAt = Date.now();
   try {
     const { imageBase64, selectedYear } = req.body;
     if (!imageBase64) return res.status(400).json({ message: "Thiếu dữ liệu ảnh" });
@@ -157,9 +165,10 @@ YÊU CẦU ĐỊNH DẠNG NGHIÊM NGẶT - Trả về JSON array, mỗi phần t
 { "date": "YYYY-MM-DD", "weight": 65.5, "bodyFat": 18.5, "muscleMass": 48.0, "waterPercent": 60.0, "boneMinerals": 2.5, "visceralFat": 8, "energy": 1500, "bioAge": 30, "balanceIndex": 80 }
 
 QUAN TRỌNG:
+- Đọc lần lượt từng dòng theo thứ tự xuất hiện; mỗi ngày đo phải là một object riêng, không gộp dòng và không bỏ qua dòng đọc được.
 - Tất cả số liệu phải là kiểu NUMBER (không phải string). Ví dụ: "weight": 65.5, KHÔNG phải "weight": "65.5"
 - weight (cân nặng) PHẢI > 0 cho mỗi dòng hợp lệ
-- Nếu không nhìn thấy giá trị cho trường nào, hãy để null hoặc bỏ qua trường đó
+- Nếu không nhìn thấy giá trị cho trường nào, hãy bỏ qua trường đó; không dùng null và không tự đoán số liệu
 - date: Nếu thấy ngày dạng DD/MM thì chuyển thành YYYY-MM-DD
 - Nếu không thấy ngày, để ngày hiện tại`;
     if (selectedYear) {
@@ -186,12 +195,14 @@ QUAN TRỌNG:
     };
     const response = await callAI(requestId, 'vision', payload, { userId, modelName: 'auto' });
     const sanitized = sanitizeJSON(response.text);
-    console.log(`[BulkExtract] Request ${requestId}: Raw AI response (600 chars):`, sanitized.substring(0, 600));
     const parsed = JSON.parse(sanitized);
-    console.log(`[BulkExtract] Request ${requestId}: Parsed ${parsed.length} items, sample:`, JSON.stringify(parsed[0] || null));
+    if (!Array.isArray(parsed)) {
+      throw new Error('AI trả về danh sách chỉ số không đúng định dạng.');
+    }
+    console.log(`[BulkExtract] Request ${requestId}: Completed in ${Date.now() - startedAt}ms with ${parsed.length} rows`);
     res.json(parsed);
   } catch (err: any) {
-    console.error(`[BulkExtract] Request ${requestId}: Error:`, err.message);
+    console.error(`[BulkExtract] Request ${requestId}: Failed after ${Date.now() - startedAt}ms:`, err.message);
     res.status(500).json({ message: err.message });
   }
 });

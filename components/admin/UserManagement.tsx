@@ -159,10 +159,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onRefresh }) => 
     const uid = getUserId(deletingUser);
     setActionMessage(null);
     try {
-      const session = localStorage.getItem('lucky_hub_session');
       const res = await fetch(`/api/users/${uid}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session}` },
+        headers: { 'Content-Type': 'application/json' },
       });
       const data = await res.json();
       if (data.success) {

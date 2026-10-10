@@ -83,7 +83,6 @@ const PostDetail: React.FC<PostDetailProps> = memo(({ postId, currentUser, users
   const fetchPost = useCallback(async () => {
     try {
       const resp = await fetch(`/api/posts/${postId}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('lucky_hub_session')}` }
       });
       if (resp.ok) {
         const data = await resp.json();

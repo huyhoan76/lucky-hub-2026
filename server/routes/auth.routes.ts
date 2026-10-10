@@ -12,6 +12,7 @@ import { validateBody, sanitizeText } from '../../services/validationService.ts'
 import { Group } from '../models/Group.ts';
 import { NutritionGroup } from '../models/NutritionGroup.ts';
 import { Notification } from '../models/Notification.ts';
+import { clearSessionCookie, getSessionIdFromCookie, isSessionIdleExpired, setSessionCookie } from '../utils/sessionCookie.ts';
 
 const router = Router();
 
@@ -173,6 +174,7 @@ router.post('/register', validateBody(
 router.post('/login', async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body;
+    const rememberMe = req.body.rememberMe === true;
     const identifier = username.toLowerCase().trim();
     const now = new Date();
 
@@ -243,9 +245,11 @@ router.post('/login', async (req: Request, res: Response) => {
       device: userAgent.substring(0, 200),
       ip,
       isActive: true,
+      rememberMe,
       lastPing: now
     });
     await activeSession.save();
+    setSessionCookie(req, res, sessionId, rememberMe);
 
     const u = user.toObject();
     delete u.password;
@@ -284,7 +288,6 @@ router.post('/login', async (req: Request, res: Response) => {
       ...u,
       id: user._id,
       email: user.email,
-      sessionId,
       groupId: user.groupId,
       groupName,
       groupPermissions: groupPerms,
@@ -298,16 +301,60 @@ router.post('/login', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/session/ping
-router.post('/session/ping', async (req: Request, res: Response) => {
+// Migrate sessions created before authentication moved to HttpOnly cookies.
+router.post('/session/migrate', async (req: Request, res: Response) => {
   try {
-    const { sessionId } = req.body;
-    if (!sessionId) {
-      return res.status(401).json({ valid: false, message: 'Thiếu sessionId' });
+    const authHeader = req.headers.authorization;
+    const sessionId = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : '';
+    if (!sessionId || sessionId.length < 10) {
+      return res.status(401).json({ message: 'Phiên cũ không hợp lệ', reason: 'invalid_token' });
     }
 
     const session = await ActiveSession.findOne({ sessionId, isActive: true });
     if (!session) {
+      return res.status(401).json({ message: 'Phiên đăng nhập không còn hiệu lực', reason: 'session_invalidated' });
+    }
+
+    const rememberMe = req.body.rememberMe === true;
+    session.rememberMe = rememberMe;
+    session.lastPing = new Date();
+    await session.save();
+    setSessionCookie(req, res, sessionId, rememberMe);
+    console.log('[Auth] Migrated an active session to an HTTP-only cookie');
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('[Auth] Session migration failed:', err.message);
+    res.status(500).json({ message: 'Không thể chuyển phiên đăng nhập' });
+  }
+});
+
+router.post('/logout', async (req: Request, res: Response) => {
+  try {
+    const sessionId = getSessionIdFromCookie(req);
+    if (sessionId) {
+      const result = await ActiveSession.updateOne({ sessionId, isActive: true }, { $set: { isActive: false } });
+      if (result.modifiedCount > 0) console.log('[Auth] Active session revoked on logout');
+    }
+    clearSessionCookie(req, res);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('[Auth] Logout failed:', err.message);
+    res.status(500).json({ message: 'Không thể đăng xuất an toàn' });
+  }
+});
+
+// POST /api/session/ping
+router.post('/session/ping', async (req: Request, res: Response) => {
+  try {
+    const sessionId = getSessionIdFromCookie(req);
+    if (!sessionId) {
+      clearSessionCookie(req, res);
+      return res.status(401).json({ valid: false, message: 'Thiếu cookie phiên đăng nhập', reason: 'no_token' });
+    }
+
+    const session = await ActiveSession.findOne({ sessionId, isActive: true });
+    if (!session) {
+      clearSessionCookie(req, res);
       return res.status(401).json({
         valid: false,
         message: 'Session đã hết hạn hoặc bị hủy do đăng nhập từ thiết bị khác.',
@@ -315,8 +362,23 @@ router.post('/session/ping', async (req: Request, res: Response) => {
       });
     }
 
-    session.lastPing = new Date();
-    await session.save();
+    const now = new Date();
+    if (isSessionIdleExpired(!!session.rememberMe, session.lastPing, now.getTime())) {
+      session.isActive = false;
+      await session.save();
+      clearSessionCookie(req, res);
+      return res.status(401).json({
+        valid: false,
+        message: 'Phiên đăng nhập đã hết hạn do không hoạt động.',
+        reason: 'session_expired'
+      });
+    }
+
+    if (req.body.activity === true) {
+      session.lastPing = now;
+      await session.save();
+      setSessionCookie(req, res, sessionId, !!session.rememberMe);
+    }
     res.json({ valid: true });
   } catch (err: any) {
     console.error(`[Session] Ping error:`, err.message);

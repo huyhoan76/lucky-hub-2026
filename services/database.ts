@@ -5,10 +5,6 @@ let isOfflineMode = false;
 
 function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const sessionId = localStorage.getItem('lucky_hub_session');
-  if (sessionId) {
-    headers['Authorization'] = `Bearer ${sessionId}`;
-  }
   return headers;
 }
 
@@ -34,7 +30,7 @@ async function request<T>(url: string, method = 'GET', body?: any, timeout = 150
       const msg = errorData.message || `Lỗi API ${res.status}`;
       
       // Xử lý session hết hạn
-      if (res.status === 401 && errorData.reason === 'session_invalidated') {
+      if (res.status === 401 && ['session_invalidated', 'session_expired', 'no_token', 'invalid_token', 'user_not_found'].includes(errorData.reason)) {
         // Gửi sự kiện để App.tsx bắt và logout
         window.dispatchEvent(new CustomEvent('session:invalidated', { detail: errorData }));
       }

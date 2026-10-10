@@ -19,10 +19,8 @@ const SystemBrandingSettings: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null);
 
   const getAuthHeaders = useCallback(() => {
-    const sessionId = localStorage.getItem('lucky_hub_session');
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${sessionId}`,
     };
   }, []);
 

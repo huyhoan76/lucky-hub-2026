@@ -9,8 +9,6 @@ type EventHandler = (payload: any) => void;
 class WsService {
   private ws: WebSocket | null = null;
   private userId: string = '';
-  private sessionId: string = '';
-  private userRole: string = '';
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 20;
   private reconnectDelay = 1000;
@@ -24,15 +22,13 @@ class WsService {
   /**
    * Kết nối WebSocket đến server
    */
-  connect(userId: string, sessionId: string, userRole: string): boolean {
+  connect(userId: string): boolean {
     if (this.ws?.readyState === WebSocket.OPEN) {
       console.log(`[WsService] Already connected, disconnecting first`);
       this.disconnect();
     }
 
     this.userId = userId;
-    this.sessionId = sessionId;
-    this.userRole = userRole;
     this.isManuallyDisconnected = false;
     this.reconnectAttempts = 0;
 
@@ -117,7 +113,7 @@ class WsService {
     // Xác định WebSocket URL
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
-    const wsUrl = `${protocol}//${host}/ws?userId=${encodeURIComponent(this.userId)}&sessionId=${encodeURIComponent(this.sessionId)}&role=${encodeURIComponent(this.userRole)}`;
+    const wsUrl = `${protocol}//${host}/ws`;
 
     console.log(`[WsService] Connecting to ${wsUrl}`);
 

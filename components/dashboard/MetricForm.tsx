@@ -13,6 +13,58 @@ interface MetricFormProps {
   latestMetrics?: Partial<HealthMetric>;
 }
 
+const BULK_NUMERIC_FIELDS = [
+  'weight', 'bodyFat', 'muscleMass', 'waterPercent', 'boneMinerals',
+  'visceralFat', 'energy', 'bioAge', 'balanceIndex',
+];
+
+const normalizeBulkDate = (
+  value: unknown,
+  selectedYear: string,
+  currentYear: number,
+  now: Date
+): string => {
+  const fallbackDate = now.toISOString().split('T')[0];
+  const dateText = typeof value === 'string' ? value.trim() : '';
+  const isoMatch = dateText.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  const dayMonthMatch = dateText.match(/^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?$/);
+
+  let year: number;
+  let month: number;
+  let day: number;
+  let hasYear = false;
+
+  if (isoMatch) {
+    year = Number(isoMatch[1]);
+    month = Number(isoMatch[2]);
+    day = Number(isoMatch[3]);
+    hasYear = true;
+  } else if (dayMonthMatch) {
+    day = Number(dayMonthMatch[1]);
+    month = Number(dayMonthMatch[2]);
+    hasYear = !!dayMonthMatch[3];
+    year = hasYear
+      ? Number(dayMonthMatch[3])
+      : selectedYear === 'auto' ? currentYear : Number(selectedYear);
+    if (year < 100) year += 2000;
+  } else {
+    return fallbackDate;
+  }
+
+  const parsedDate = new Date(year, month - 1, day, 23, 59, 59);
+  if (
+    !Number.isFinite(parsedDate.getTime()) ||
+    parsedDate.getFullYear() !== year ||
+    parsedDate.getMonth() !== month - 1 ||
+    parsedDate.getDate() !== day
+  ) {
+    return fallbackDate;
+  }
+
+  if (!hasYear && selectedYear === 'auto' && parsedDate > now) year -= 1;
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+};
+
 const MetricForm: React.FC<MetricFormProps> = ({ onSave, onSaveBulk, existingDates = [], onClose, latestMetrics }) => {
   const modalId = useMemo(() => `metric-form_${Math.random().toString(36).slice(2, 9)}`, []);
   useBodyScrollLock(true);
@@ -98,6 +150,7 @@ const MetricForm: React.FC<MetricFormProps> = ({ onSave, onSaveBulk, existingDat
   const handleAIUpload = async (e: React.ChangeEvent<HTMLInputElement>, isBulk: boolean) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.currentTarget.value = '';
     
     setLoadingAI(true);
     setBulkMode(isBulk);
@@ -106,119 +159,128 @@ const MetricForm: React.FC<MetricFormProps> = ({ onSave, onSaveBulk, existingDat
 
     const now = new Date();
     const currentYear = selectedYearAI === 'auto' ? now.getFullYear() : parseInt(selectedYearAI);
-
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      log("Đã đọc file xong, bắt đầu nén ảnh để tối ưu payload...", "system");
-      const img = new Image();
-      img.src = reader.result as string;
-      img.onload = async () => {
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 1200;
-        const scale = MAX_WIDTH / img.width;
-        canvas.width = MAX_WIDTH;
-        canvas.height = img.height * scale;
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
-        log("Nén ảnh thành công. Gửi dữ liệu tới Lucky AI qua Server...", "ai");
-
-        if (!isBulk) {
-          try {
-            const extracted = await extractMetricsFromImage(compressedBase64, selectedYearAI);
-            setLoadingAI(false);
-
-            if (extracted && extracted.weight && extracted.weight > 0) {
-              setFormData(prev => ({ 
-                ...prev, 
-                ...extracted, 
-                balanceIndex: extracted.balanceIndex ?? 0, 
-                date: extracted.date || prev.date 
-              }));
-              setStatusMsg({ 
-                text: `✅ Lucky AI đã trích xuất xong cho ngày ${formatDateVN(extracted.date || "")}!`, 
-                type: 'success' 
-              });
-            } else {
-              log("AI không nhận diện được chỉ số hợp lệ trong ảnh đơn.", "error");
-              setStatusMsg({ 
-                text: "⚠️ Lucky AI không tìm thấy chỉ số sức khỏe hợp lệ.", 
-                type: 'error' 
-              });
-            }
-          } catch (err: any) {
-            setLoadingAI(false);
-            log(`Lỗi trích xuất đơn: ${err.message}`, "error");
-            setStatusMsg({ text: "⚠️ Có lỗi xảy ra trong quá trình phân tích ảnh.", type: 'error' });
+    try {
+      const imageDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(reader.error || new Error('Không thể đọc file ảnh.'));
+        reader.onload = () => {
+          if (typeof reader.result !== 'string') {
+            reject(new Error('File ảnh không có dữ liệu hợp lệ.'));
+            return;
           }
+          resolve(reader.result);
+        };
+        reader.readAsDataURL(file);
+      });
+
+      log('Đã đọc file xong, bắt đầu nén ảnh để tối ưu payload...', 'system');
+      const compressedBase64 = await new Promise<string>((resolve, reject) => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('Không thể giải mã ảnh đã chọn.'));
+        img.onload = () => {
+          try {
+            if (!img.naturalWidth || !img.naturalHeight) {
+              throw new Error('Ảnh không có kích thước hợp lệ.');
+            }
+            const maxWidth = 1600;
+            const maxHeight = 4000;
+            const scale = Math.min(1, maxWidth / img.naturalWidth, maxHeight / img.naturalHeight);
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+            canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+            const ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error('Không khởi tạo được bộ xử lý ảnh.');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
+          } catch (error) {
+            reject(error);
+          }
+        };
+        img.src = imageDataUrl;
+      });
+      log('Nén ảnh xong, gửi yêu cầu phân tích tới server.', 'ai');
+
+      if (!isBulk) {
+        const extracted = await extractMetricsFromImage(compressedBase64, selectedYearAI);
+        if (extracted && Number(extracted.weight) > 0) {
+          setFormData(prev => ({
+            ...prev,
+            ...extracted,
+            weight: Number(extracted.weight),
+            balanceIndex: extracted.balanceIndex ?? 0,
+            date: extracted.date || prev.date
+          }));
+          setStatusMsg({
+            text: `✅ Lucky AI đã trích xuất xong cho ngày ${formatDateVN(extracted.date || '')}!`,
+            type: 'success'
+          });
         } else {
-          setBulkPreview([]);
-          try {
-            log(`Đang gọi endpoint /api/ai/bulk-extract với năm: ${selectedYearAI}...`, "ai");
-            const sessionId = localStorage.getItem('lucky_hub_session');
-            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-            if (sessionId) {
-              headers['Authorization'] = `Bearer ${sessionId}`;
-            }
-            const res = await fetch('/api/ai/bulk-extract', {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({ 
-                imageBase64: compressedBase64,
-                selectedYear: selectedYearAI !== 'auto' ? selectedYearAI : now.getFullYear().toString()
-              }),
-              signal: AbortSignal.timeout(45000)
-            });
-
-            if (!res.ok) {
-              const errBody = await res.json().catch(() => ({}));
-              throw new Error(errBody.message || `Server trả về lỗi ${res.status}`);
-            }
-
-            const data = await res.json();
-            log(`AI đã phản hồi. Nhận được ${data.length} bản ghi thô.`, "ai");
-            
-            const processedData = data.filter((item: any) => item.weight && item.weight > 0).map((item: any) => {
-              if (item.date && item.date.includes('/')) {
-                const parts = item.date.split('/');
-                const d = parseInt(parts[0]);
-                const m = parseInt(parts[1]);
-                
-                if (selectedYearAI !== 'auto') {
-                  item.date = `${selectedYearAI}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                } else {
-                  const extractedDateThisYear = new Date(currentYear, m - 1, d, 23, 59, 59);
-                  let finalYear = currentYear;
-                  if (extractedDateThisYear > now) {
-                    finalYear = currentYear - 1;
-                  }
-                  item.date = `${finalYear}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                }
-              } else if (!item.date) {
-                item.date = now.toISOString().split('T')[0];
-              }
-              return { ...formData, balanceIndex: 0, ...item };
-            });
-            
-            setLoadingAI(false);
-            if (processedData.length > 0) {
-              log(`Xử lý thành công ${processedData.length} bản ghi với năm ${selectedYearAI}.`, "success");
-              setBulkPreview(processedData);
-              setStatusMsg({ text: `✅ Đã quét thành công ${processedData.length} bản ghi!`, type: 'success' });
-            } else {
-              log("Không tìm thấy dòng dữ liệu nào hợp lệ sau khi filter (weight > 0).", "error");
-              setStatusMsg({ text: "⚠️ Không tìm thấy danh sách chỉ số hợp lệ.", type: 'error' });
-            }
-          } catch (err: any) {
-            setLoadingAI(false);
-            log(`Lỗi phân tích hàng loạt: ${err.message}`, "error");
-            setStatusMsg({ text: "⚠️ Lỗi phân tích ảnh hàng loạt: " + err.message, type: 'error' });
-          }
+          log('AI đã trả kết quả nhưng không có chỉ số cân nặng hợp lệ trong ảnh đơn.', 'error');
+          setStatusMsg({
+            text: '⚠️ Lucky AI không tìm thấy chỉ số sức khỏe hợp lệ.',
+            type: 'error'
+          });
         }
-      };
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
+        return;
+      }
+
+      setBulkPreview([]);
+      log(`Đang gọi endpoint /api/ai/bulk-extract với năm: ${selectedYearAI}...`, 'ai');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const res = await fetch('/api/ai/bulk-extract', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          imageBase64: compressedBase64,
+          selectedYear: selectedYearAI !== 'auto' ? selectedYearAI : now.getFullYear().toString()
+        })
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.message || `Server trả về lỗi ${res.status}`);
+      }
+
+      const data: unknown = await res.json();
+      if (!Array.isArray(data)) {
+        throw new Error('AI trả về danh sách bản ghi không đúng định dạng.');
+      }
+      log(`AI đã phản hồi. Nhận được ${data.length} bản ghi thô.`, 'ai');
+
+      const processedData = data
+        .filter((item: any) => item && typeof item === 'object' && Number.isFinite(Number(item.weight)) && Number(item.weight) > 0)
+        .map((item: any) => {
+          const normalized: Record<string, unknown> = {
+            date: normalizeBulkDate(item.date, selectedYearAI, currentYear, now),
+            balanceIndex: 0,
+          };
+          BULK_NUMERIC_FIELDS.forEach(field => {
+            const value = item[field];
+            if (value !== undefined && value !== null && value !== '' && Number.isFinite(Number(value))) {
+              normalized[field] = Number(value);
+            }
+          });
+          return normalized;
+        });
+
+      if (processedData.length > 0) {
+        log(`Xử lý thành công ${processedData.length} bản ghi với năm ${selectedYearAI}.`, 'success');
+        setBulkPreview(processedData);
+        setStatusMsg({ text: `✅ Đã quét thành công ${processedData.length} bản ghi!`, type: 'success' });
+      } else {
+        log('AI trả kết quả nhưng không có dòng dữ liệu nào chứa cân nặng hợp lệ.', 'error');
+        setStatusMsg({ text: '⚠️ Không tìm thấy danh sách chỉ số hợp lệ.', type: 'error' });
+      }
+    } catch (err: any) {
+      const message = err?.message || 'Lỗi không xác định';
+      log(`Lỗi phân tích ${isBulk ? 'hàng loạt' : 'đơn lẻ'}: ${message}`, 'error');
+      setStatusMsg({
+        text: `⚠️ ${isBulk ? 'Lỗi phân tích ảnh hàng loạt' : 'Lỗi phân tích ảnh'}: ${message}`,
+        type: 'error'
+      });
+    } finally {
+      setLoadingAI(false);
+    }
   };
 
   const metricFields = useMemo(() => {
